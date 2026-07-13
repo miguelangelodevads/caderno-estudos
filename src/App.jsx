@@ -12,14 +12,19 @@ import {
   Library,
   Cloud,
   Loader2,
+  LogOut,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
+
+// Importações do Firebase atualizadas (signInAnonymously removido)
 import {
   getAuth,
-  signInAnonymously,
   onAuthStateChanged,
   signInWithCustomToken,
+  signInWithEmailAndPassword,
+  signOut,
 } from "firebase/auth";
+
 import {
   getFirestore,
   collection,
@@ -29,8 +34,8 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { auth as localAuth, db as localDb } from "./config/firebase.js";
+import AreaLogin from "./components/AreaLogin";
 
-// Configuração segura do Firebase baseada no ambiente
 const firebaseConfig =
   typeof __firebase_config !== "undefined" && __firebase_config
     ? JSON.parse(__firebase_config)
@@ -69,7 +74,6 @@ const TOPIC_COLORS = [
   "bg-orange-400",
 ];
 
-// --- Controlador Principal (App) ---
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!!auth);
@@ -78,7 +82,6 @@ export default function App() {
   const [activeNotebookId, setActiveNotebookId] = useState(null);
   const [activeTopicId, setActiveTopicId] = useState(null);
 
-  // Estados para formulários
   const [isAddingNotebook, setIsAddingNotebook] = useState(false);
   const [newNotebookTitle, setNewNotebookTitle] = useState("");
   const [newNotebookColor, setNewNotebookColor] = useState(COLORS[0]);
@@ -91,7 +94,25 @@ export default function App() {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteForm, setNoteForm] = useState({ title: "", content: "" });
 
-  // 1. & 2. Inicializa Autenticação e Busca Dados da Nuvem
+  const [mostrarLogin, setMostrarLogin] = useState(true);
+
+  const fazerLoginComEmail = async (email, senha) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, senha);
+    } catch (error) {
+      console.error("Erro no login:", error);
+      alert("Credenciais incorretas ou erro ao conectar.");
+    }
+  };
+
+  const fazerLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Erro ao terminar sessão:", error);
+    }
+  };
+
   useEffect(() => {
     if (!auth || !db) {
       return;
@@ -106,8 +127,6 @@ export default function App() {
           __initial_auth_token
         ) {
           await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
         }
       } catch (error) {
         console.error("Erro na autenticação:", error);
@@ -116,10 +135,11 @@ export default function App() {
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      dbUnsubscribe(); // Sempre cancelar a inscrição do ouvinte anterior
+      dbUnsubscribe();
       setUser(currentUser);
 
-      if (currentUser) {
+      if (currentUser && !currentUser.isAnonymous) {
+        setMostrarLogin(false);
         setLoading(true);
         const notebooksRef = collection(
           db,
@@ -145,9 +165,9 @@ export default function App() {
           },
         );
       } else {
-        // O usuário está desconectado, limpa os dados e para de carregar
         setNotebooks([]);
         setLoading(false);
+        setMostrarLogin(true);
       }
     });
     return () => {
@@ -160,8 +180,6 @@ export default function App() {
   const activeTopic = activeNotebook?.topics.find(
     (t) => t.id === activeTopicId,
   );
-
-  // --- Funções de Nuvem ---
 
   const handleAddNotebook = async () => {
     if (!newNotebookTitle.trim() || !user || !db) return;
@@ -201,7 +219,7 @@ export default function App() {
     if (!newTopicTitle.trim() || !activeNotebookId || !user || !db) return;
 
     const newTopic = {
-      id: Date.now().toString(), // eslint-disable-line react-hooks/purity
+      id: Date.now().toString(),
       title: newTopicTitle,
       color: newTopicColor,
       notes: [],
@@ -378,7 +396,10 @@ export default function App() {
     );
   }
 
-  // --- Renderização da Estante (Home) ---
+  if (mostrarLogin) {
+    return <AreaLogin aoFazerLogin={fazerLoginComEmail} />;
+  }
+
   if (activeNotebookId === null) {
     return (
       <div className='min-h-screen bg-stone-100 p-8 font-sans'>
@@ -400,6 +421,15 @@ export default function App() {
                   <Cloud className='w-4 h-4' /> Offline
                 </div>
               )}
+
+              <button
+                onClick={fazerLogout}
+                className='text-stone-500 hover:text-stone-800 p-2 rounded-full hover:bg-stone-200 transition-colors'
+                title='Terminar Sessão'
+              >
+                <LogOut className='w-5 h-5' />
+              </button>
+
               <button
                 onClick={() => setIsAddingNotebook(true)}
                 className='bg-stone-800 hover:bg-stone-700 text-white px-5 py-2.5 rounded-lg shadow-sm flex items-center gap-2 font-medium transition-all'
@@ -509,7 +539,6 @@ export default function App() {
     );
   }
 
-  // --- Renderização do Caderno Aberto (Interior) ---
   return (
     <div className='min-h-screen bg-neutral-200 p-4 md:p-8 font-sans selection:bg-blue-200 text-slate-800 flex justify-center items-center'>
       <div
@@ -518,7 +547,6 @@ export default function App() {
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.1'/%3E%3C/svg%3E")`,
         }}
       >
-        {/* Sidebar */}
         <div className='w-full md:w-64 bg-[#efebe1] md:border-r border-neutral-300 shadow-[inset_-10px_0_20px_-15px_rgba(0,0,0,0.1)] flex flex-col z-10 relative'>
           <div className='p-5 border-b border-neutral-300/50 mb-2 bg-black/5'>
             <button
@@ -625,7 +653,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Área Principal */}
         <div className='flex-1 relative overflow-y-auto z-10'>
           <div
             className='relative z-10 p-6 md:pl-16 md:pr-12 md:pt-16 md:pb-10 min-h-full bg-[#f0e9da]'
