@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Linhas de caderno azuladas */
+  .lined-paper {
+    background-image: linear-gradient(to bottom, #dbeafe 1px, transparent 1px);
+    background-size: 100% 2rem;
+    background-position: 0 0;
+  }
+}
