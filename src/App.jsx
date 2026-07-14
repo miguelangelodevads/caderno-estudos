@@ -924,7 +924,7 @@ export default function App() {
                               <div className='absolute -left-3 md:-left-4 top-1 bottom-0 w-0.5 md:w-1 bg-linear-to-b from-transparent via-yellow-300/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity'></div>
 
                               <div
-                                className='flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-0'
+                                className='flex flex-row justify-between items-start gap-2'
                                 style={{ lineHeight: "2rem" }}
                               >
                                 <h3
@@ -954,7 +954,7 @@ export default function App() {
                               </div>
 
                               <div
-                                className='text-slate-700 whitespace-pre-wrap font-medium mt-1 md:mt-0'
+                                className='text-slate-700 whitespace-pre-wrap font-medium'
                                 style={{
                                   lineHeight: "2rem",
                                   textShadow: "0 1px 0 rgba(255,255,255,0.5)",
@@ -994,7 +994,7 @@ export default function App() {
             <div className='flex-1 text-center sm:text-left'>
               <h3 className='font-bold text-slate-800 text-lg'>Instalar App</h3>
               <p className='text-slate-600 text-sm'>
-                Adicione o Caderno Tiger ao ecrã inicial do seu telemóvel para um acesso mais rápido!
+                Adicione o Caderno de Estudos ao ecrã inicial do seu telemóvel para um acesso mais rápido!
               </p>
             </div>
             <div className='flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0'>

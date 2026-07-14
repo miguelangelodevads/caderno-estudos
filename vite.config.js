@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["pwa-icon.svg"],
       manifest: {
-        name: "Caderno Tiger",
-        short_name: "Tiger",
+        name: "Caderno de Estudos",
+        short_name: "Caderno",
         description: "Os Meus Cadernos de Estudo",
         theme_color: "#efebe1",
         background_color: "#efebe1",
@@ -36,6 +36,9 @@ export default defineConfig({
             purpose: "any maskable",
           }
         ],
+      },
+      devOptions: {
+        enabled: true,
       },
     }),
   ],
