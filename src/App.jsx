@@ -13,6 +13,9 @@ import {
   Cloud,
   Loader2,
   LogOut,
+  ChevronUp,
+  ChevronDown,
+  Menu,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 
@@ -94,8 +97,44 @@ export default function App() {
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteForm, setNoteForm] = useState({ title: "", content: "" });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [mostrarLogin, setMostrarLogin] = useState(true);
+
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+
+  useEffect(() => {
+    // Detectar iOS para mostrar instruções alternativas
+    const isIosDevice =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIos(isIosDevice);
+
+    // Capturar o evento de instalação (Android/Chrome)
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setDeferredPrompt(null);
+        setShowInstallPrompt(false);
+      }
+    }
+  };
 
   const fazerLoginComEmail = async (email, senha) => {
     try {
@@ -289,6 +328,35 @@ export default function App() {
     }
   };
 
+  const handleMoveTopic = async (index, direction) => {
+    if (!activeNotebook || !user || !db) return;
+    const topics = [...activeNotebook.topics];
+    if (direction === "up" && index > 0) {
+      [topics[index - 1], topics[index]] = [topics[index], topics[index - 1]];
+    } else if (direction === "down" && index < topics.length - 1) {
+      [topics[index + 1], topics[index]] = [topics[index], topics[index + 1]];
+    } else {
+      return;
+    }
+    const updatedNotebook = { ...activeNotebook, topics };
+    try {
+      await setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "users",
+          user.uid,
+          "notebooks",
+          activeNotebookId,
+        ),
+        updatedNotebook,
+      );
+    } catch (error) {
+      console.error("Erro ao mover assunto:", error);
+    }
+  };
+
   const handleSaveNote = async () => {
     if (!noteForm.title.trim() || !activeNotebook || !user || !db) return;
     const updatedTopics = activeNotebook.topics.map((topic) => {
@@ -411,7 +479,7 @@ export default function App() {
   // --- Renderização da Estante (Home) ---
   if (activeNotebookId === null) {
     return (
-      <div className='min-h-screen bg-stone-100 p-4 sm:p-8 font-sans'>
+      <div className='min-h-screen bg-[#efebe1] p-4 sm:p-8 font-sans text-slate-800'>
         <div className='max-w-6xl mx-auto'>
           {/* Cabeçalho da Estante - Responsivo */}
           <header className='mb-8 sm:mb-12 flex flex-col md:flex-row md:items-center justify-between border-b-2 border-stone-300 pb-4 gap-4'>
@@ -550,51 +618,86 @@ export default function App() {
 
   // --- Renderização do Caderno Aberto (Interior) ---
   return (
-    <div className='min-h-screen bg-neutral-200 p-0 md:p-8 font-sans selection:bg-blue-200 text-slate-800 flex justify-center items-center'>
+    <div className='min-h-screen bg-[#e8e0d0] font-sans selection:bg-blue-200 text-slate-800 flex justify-center items-center'>
       <div
-        className='w-full max-w-6xl h-dvh md:h-[85vh] flex flex-col md:flex-row bg-[#e8e0d0] rounded-none md:rounded-3xl shadow-2xl relative overflow-hidden ring-0 md:ring-1 md:ring-black/5'
+        className='w-full h-dvh flex flex-col md:flex-row bg-[#e8e0d0] relative overflow-hidden'
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.1'/%3E%3C/svg%3E")`,
         }}
       >
-        {/* Sidebar (Responsiva: No topo no telemóvel, à esquerda no PC) */}
-        <div className='w-full md:w-64 bg-[#efebe1] border-b md:border-b-0 md:border-r border-neutral-300 shadow-[inset_-10px_0_20px_-15px_rgba(0,0,0,0.1)] flex flex-col z-20 shrink-0 max-h-[40vh] md:max-h-full'>
-          <div className='p-3 md:p-5 border-b border-neutral-300/50 mb-0 md:mb-2 bg-black/5 shrink-0'>
+        {/* Top Bar Mobile */}
+        <div className='md:hidden bg-[#efebe1] border-b border-neutral-300 p-3 flex items-center justify-between z-30 shrink-0'>
+          <div className='flex items-center gap-3'>
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className='p-1.5 text-slate-600 hover:bg-black/5 rounded-md'
+            >
+              <Menu className='w-6 h-6' />
+            </button>
+            <div className='flex items-center gap-2'>
+              <BookOpen className='w-5 h-5 text-amber-700' />
+              <span className='font-bold text-slate-800 font-mono truncate max-w-[150px]'>
+                {activeNotebook.title}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={closeNotebook}
+            className='p-1.5 text-slate-600 hover:bg-black/5 rounded-md'
+          >
+            <ArrowLeft className='w-5 h-5' />
+          </button>
+        </div>
+
+        {/* Overlay do Drawer (Mobile) */}
+        {isMobileMenuOpen && (
+          <div
+            className='fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden'
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* Sidebar (Drawer em mobile, Fixa em PC) */}
+        <div
+          className={`
+          absolute md:relative top-0 left-0 h-full w-4/5 sm:w-64 max-w-sm 
+          bg-[#efebe1] md:border-r border-neutral-300 shadow-[inset_-10px_0_20px_-15px_rgba(0,0,0,0.1)] 
+          flex flex-col z-50 md:z-20 shrink-0
+          transition-transform duration-300 ease-in-out
+          ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}
+        >
+          <div className='p-5 border-b border-neutral-300/50 bg-[#e3dfd6] shrink-0 flex flex-col justify-center md:h-[130px]'>
             <button
               onClick={closeNotebook}
-              className='flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm font-medium mb-2 md:mb-4'
+              className='hidden md:flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm font-medium mb-3'
             >
               <ArrowLeft className='w-4 h-4' /> Voltar
             </button>
-
-            <div className='flex md:flex-col items-center md:items-start gap-2 md:gap-0 w-full'>
-              <p className='hidden md:block text-xs text-slate-500 font-bold uppercase tracking-wider mb-1 shrink-0'>
-                Caderno de
-              </p>
-              <h1
-                className='text-base md:text-lg font-bold text-slate-800 flex items-start gap-2 leading-tight w-full'
-                style={{ fontFamily: "'Courier New', Courier, monospace" }}
-              >
-                {/* Adicionado mt-1 para o ícone ficar alinhado com a primeira linha do texto */}
-                <BookOpen className='w-4 h-4 md:w-5 md:h-5 text-amber-700 shrink-0 mt-0.5' />
-                {/* Aqui está o segredo: whitespace-normal e break-word fazem o texto descer de linha */}
-                <span className='whitespace-normal break-word'>
-                  {activeNotebook?.title}
-                </span>
-              </h1>
-            </div>
+            <p className='text-xs text-slate-500 font-bold uppercase tracking-wider mb-1'>
+              Caderno de
+            </p>
+            <h1
+              className='text-lg font-bold text-slate-800 flex items-start gap-2 leading-tight w-full'
+              style={{ fontFamily: "'Courier New', Courier, monospace" }}
+            >
+              <BookOpen className='w-5 h-5 text-amber-700 shrink-0 mt-0.5' />
+              <span className='whitespace-normal break-word'>
+                {activeNotebook.title}
+              </span>
+            </h1>
           </div>
 
-          {/* Menu Horizontal no Telemóvel, Vertical no PC */}
-          <div className='flex-1 overflow-x-auto overflow-y-hidden md:overflow-y-auto md:overflow-x-hidden flex flex-row md:flex-col px-3 md:px-4 py-2 md:space-y-2 gap-2 md:gap-0 no-scrollbar'>
-            <p className='hidden md:block text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-3 shrink-0'>
+          <div className='flex-1 overflow-y-auto overflow-x-hidden flex flex-col px-4 py-2 space-y-2 no-scrollbar'>
+            <p className='text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-3 shrink-0'>
               Assuntos (Abas)
             </p>
-            {activeNotebook?.topics?.map((topic) => (
+            {activeNotebook?.topics?.map((topic, index) => (
               <div
                 key={topic.id}
                 onClick={() => {
                   setActiveTopicId(topic.id);
+                  setIsMobileMenuOpen(false);
                   setIsAddingNote(false);
                 }}
                 className={`group relative flex items-center justify-between p-2 md:p-3 rounded-lg cursor-pointer transition-all duration-200 shrink-0 min-w-30 md:min-w-0 border md:border-0 border-stone-200
@@ -613,16 +716,42 @@ export default function App() {
                 </div>
 
                 {activeTopicId === topic.id && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteTopic(topic.id);
-                    }}
-                    className='ml-1 p-1 text-slate-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity'
-                    title='Excluir Assunto'
-                  >
-                    <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
-                  </button>
+                  <div className='flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-1 bg-white/80 rounded-md shadow-sm border border-slate-100 shrink-0'>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveTopic(index, "up");
+                      }}
+                      disabled={index === 0}
+                      className='p-1 text-slate-400 hover:text-blue-500 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors'
+                      title='Mover para cima'
+                    >
+                      <ChevronUp className='w-3 h-3 md:w-4 md:h-4' />
+                    </button>
+                    <div className='w-px h-4 bg-slate-200'></div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveTopic(index, "down");
+                      }}
+                      disabled={index === activeNotebook.topics.length - 1}
+                      className='p-1 text-slate-400 hover:text-blue-500 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors'
+                      title='Mover para baixo'
+                    >
+                      <ChevronDown className='w-3 h-3 md:w-4 md:h-4' />
+                    </button>
+                    <div className='w-px h-4 bg-slate-200'></div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTopic(topic.id);
+                      }}
+                      className='p-1 text-slate-400 hover:text-red-500 transition-colors'
+                      title='Excluir Assunto'
+                    >
+                      <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -674,186 +803,234 @@ export default function App() {
         </div>
 
         {/* Área Principal (Página do Caderno) */}
-        <div className='flex-1 relative overflow-y-auto z-10'>
-          <div
-            className='relative z-10 p-4 sm:p-6 md:pl-16 md:pr-12 md:pt-12 md:pb-10 min-h-full bg-[#f0e9da]'
-            style={{
-              lineHeight: "2rem",
-              backgroundImage:
-                "linear-gradient(to bottom, transparent calc(100% - 1px), rgba(60, 60, 60, 0.4) calc(100% - 1px), rgba(60, 60, 60, 0.4) 100%)",
-              backgroundSize: "100% 2rem",
-              backgroundPosition: "0 1.8rem",
-            }}
-          >
-            <div className='absolute left-4 sm:left-8 md:left-16 top-0 bottom-0 w-px md:w-0.5 bg-red-400/40 z-0'></div>
-            {activeTopic ? (
-              <div className='max-w-3xl mx-auto pl-4 md:pl-0'>
-                {/* Header da Aula - Responsivo */}
-                <header
-                  className='mb-6 md:mb-10 border-b-2 border-slate-800 pb-2 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 sm:gap-0'
-                  style={{ lineHeight: "2rem" }}
-                >
-                  <div>
-                    <div
-                      className='flex items-center gap-2'
-                      style={{ lineHeight: "2rem" }}
-                    >
-                      <Bookmark
-                        className={`w-4 h-4 md:w-5 md:h-5 text-${activeTopic.color.split("-")[1]}-500 shrink-0`}
-                      />
-                      <h2 className='text-2xl md:text-3xl font-serif text-slate-800 tracking-tight break-word'>
-                        {activeTopic.title}
-                      </h2>
-                    </div>
-                    <p className='text-xs md:text-sm text-slate-500 font-mono flex items-center gap-1 md:gap-2 mt-1'>
-                      <Cloud className='w-3 h-3 md:w-4 md:h-4 text-green-500' />{" "}
-                      Nuvem Atualizada
-                    </p>
+        <div className='flex-1 flex flex-col relative z-10 overflow-hidden'>
+          {activeTopic ? (
+            <>
+              {/* Header Edge-to-Edge */}
+              <header className='bg-[#e3dfd6] p-4 sm:p-6 md:px-12 md:py-0 border-b border-neutral-300/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0 z-20 shrink-0 md:h-[130px]'>
+                <div>
+                  <div className='flex items-center gap-2'>
+                    <Bookmark
+                      className={`w-5 h-5 md:w-6 md:h-6 text-${activeTopic.color.split("-")[1]}-500 shrink-0`}
+                    />
+                    <h2 className='text-2xl md:text-3xl font-serif font-bold text-slate-800 tracking-tight break-word'>
+                      {activeTopic.title}
+                    </h2>
                   </div>
-                  {!isAddingNote && (
-                    <button
-                      onClick={() => setIsAddingNote(true)}
-                      className='bg-slate-800 hover:bg-slate-700 text-white px-3 md:px-4 py-2 rounded-md shadow-sm flex items-center justify-center gap-2 text-xs md:text-sm font-medium transition-all w-full sm:w-auto'
-                    >
-                      <Plus className='w-3 h-3 md:w-4 md:h-4' /> Adicionar Aula
-                    </button>
-                  )}
-                </header>
-
-                {isAddingNote ? (
-                  <div className='bg-white/90 backdrop-blur-sm p-4 md:p-6 rounded-xl shadow-lg ring-1 ring-black/5 mb-8 md:mb-10'>
-                    <h3 className='text-base md:text-lg font-medium text-slate-800 mb-4 font-serif'>
-                      {editingNoteId ? "Editar Anotação" : "Nova Anotação"}
-                    </h3>
-                    <div className='space-y-4'>
-                      <input
-                        type='text'
-                        placeholder='Título da Aula'
-                        value={noteForm.title}
-                        onChange={(e) =>
-                          setNoteForm({ ...noteForm, title: e.target.value })
-                        }
-                        className='w-full text-base md:text-lg bg-transparent border-b-2 border-slate-200 focus:border-blue-400 outline-none pb-2 font-medium'
-                      />
-                      <textarea
-                        placeholder='Escreva os seus resumos aqui...'
-                        value={noteForm.content}
-                        onChange={(e) =>
-                          setNoteForm({ ...noteForm, content: e.target.value })
-                        }
-                        className='w-full h-32 md:h-48 bg-transparent border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none resize-none text-slate-700'
-                        style={{
-                          lineHeight: "2rem",
-                          fontFamily: "'Caveat', cursive",
-                          fontSize: "1.3rem",
-                        }}
-                      />
-                      <div className='flex justify-end gap-2 md:gap-3 pt-2'>
-                        <button
-                          onClick={() => {
-                            setIsAddingNote(false);
-                            setEditingNoteId(null);
-                            setNoteForm({ title: "", content: "" });
-                          }}
-                          className='px-3 md:px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-md text-xs md:text-sm font-medium transition-colors'
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          onClick={handleSaveNote}
-                          className='px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs md:text-sm font-medium shadow-sm transition-colors'
-                        >
-                          Salvar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    {activeTopic.notes?.length === 0 ? (
-                      <div className='text-center py-12 md:py-20 opacity-50 flex flex-col items-center'>
-                        <Edit2 className='w-10 h-10 md:w-12 md:h-12 mb-4 text-slate-400' />
-                        <p className='text-base md:text-lg font-serif'>
-                          Nenhuma anotação neste assunto ainda.
-                        </p>
-                      </div>
-                    ) : (
-                      activeTopic.notes?.map((note, index) => (
-                        <article
-                          key={note.id}
-                          className='group relative pr-2 md:pr-4'
-                          style={{
-                            marginBottom:
-                              index < activeTopic.notes.length - 1
-                                ? "4rem"
-                                : "0",
-                          }}
-                        >
-                          <div className='absolute -left-3 md:-left-4 top-1 bottom-0 w-0.5 md:w-1 bg-linear-to-b from-transparent via-yellow-300/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity'></div>
-
-                          <div
-                            className='flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-0'
-                            style={{ lineHeight: "2rem" }}
-                          >
-                            <h3
-                              className='text-lg md:text-xl font-bold text-slate-800 font-serif flex items-center gap-2'
-                              style={{ lineHeight: "2rem" }}
-                            >
-                              <span className='text-xs md:text-sm font-mono text-slate-400 bg-slate-100 px-1.5 md:px-2 py-0.5 rounded'>
-                                #{index + 1}
-                              </span>
-                              {note.title}
-                            </h3>
-                            <div className='flex self-start opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white/80 rounded-md shadow-sm border border-slate-100'>
-                              <button
-                                onClick={() => handleEditNote(note)}
-                                className='p-1.5 md:p-2 text-slate-400 hover:text-blue-500 transition-colors'
-                              >
-                                <Edit2 className='w-3 h-3 md:w-4 md:h-4' />
-                              </button>
-                              <div className='w-px bg-slate-200'></div>
-                              <button
-                                onClick={() => handleDeleteNote(note.id)}
-                                className='p-1.5 md:p-2 text-slate-400 hover:text-red-500 transition-colors'
-                              >
-                                <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
-                              </button>
-                            </div>
-                          </div>
-
-                          <div
-                            className='text-slate-700 whitespace-pre-wrap font-medium mt-1 md:mt-0'
-                            style={{
-                              lineHeight: "2rem",
-                              textShadow: "0 1px 0 rgba(255,255,255,0.5)",
-                              fontFamily: "'Caveat', cursive",
-                              fontSize: "1.3rem", // Tamanho ligeiramente menor em mobile para caber melhor
-                            }}
-                          >
-                            {note.content}
-                          </div>
-                        </article>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className='flex h-[50vh] md:h-full items-center justify-center'>
-                <div className='text-center opacity-40'>
-                  <Bookmark className='w-12 h-12 md:w-16 md:h-16 mx-auto mb-4' />
-                  <p className='text-lg md:text-xl font-serif'>
-                    Selecione ou crie um assunto (aba)
-                  </p>
-                  <p className='text-sm md:text-base'>
-                    para começar a estudar.
+                  <p className='text-xs md:text-sm text-slate-500 font-mono flex items-center gap-1 md:gap-2 mt-2'>
+                    <Cloud className='w-3 h-3 md:w-4 md:h-4 text-green-500' />{" "}
+                    Nuvem Atualizada
                   </p>
                 </div>
+                {!isAddingNote && (
+                  <button
+                    onClick={() => setIsAddingNote(true)}
+                    className='bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-2 text-sm font-medium transition-all w-full sm:w-auto'
+                  >
+                    <Plus className='w-4 h-4' /> Adicionar Aula
+                  </button>
+                )}
+              </header>
+
+              {/* Lined Paper Area */}
+              <div className='flex-1 relative overflow-y-auto bg-[#f0e9da]'>
+                <div
+                  className='relative min-h-full px-4 sm:px-6 md:pl-16 md:pr-12 pt-8 pb-10'
+                  style={{
+                    lineHeight: "2rem",
+                    backgroundImage:
+                      "linear-gradient(to bottom, transparent calc(100% - 1px), rgba(60, 60, 60, 0.4) calc(100% - 1px), rgba(60, 60, 60, 0.4) 100%)",
+                    backgroundSize: "100% 2rem",
+                    backgroundPosition: "0 1.8rem",
+                  }}
+                >
+                  <div className='absolute left-4 sm:left-8 md:left-16 top-0 bottom-0 w-px md:w-0.5 bg-red-400/40 z-0'></div>
+                  <div className='max-w-5xl pl-1 md:pl-2 relative z-10'>
+                    {isAddingNote ? (
+                      <div className='bg-white/90 backdrop-blur-sm p-4 md:p-6 rounded-xl shadow-lg ring-1 ring-black/5 mb-8 md:mb-10'>
+                        <h3 className='text-base md:text-lg font-medium text-slate-800 mb-4 font-serif'>
+                          {editingNoteId ? "Editar Anotação" : "Nova Anotação"}
+                        </h3>
+                        <div className='space-y-4'>
+                          <input
+                            type='text'
+                            placeholder='Título da Aula'
+                            value={noteForm.title}
+                            onChange={(e) =>
+                              setNoteForm({
+                                ...noteForm,
+                                title: e.target.value,
+                              })
+                            }
+                            className='w-full text-base md:text-lg bg-transparent border-b-2 border-slate-200 focus:border-blue-400 outline-none pb-2 font-medium'
+                          />
+                          <textarea
+                            placeholder='Escreva os seus resumos aqui...'
+                            value={noteForm.content}
+                            onChange={(e) =>
+                              setNoteForm({
+                                ...noteForm,
+                                content: e.target.value,
+                              })
+                            }
+                            className='w-full h-32 md:h-48 bg-transparent border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none resize-none text-slate-700'
+                            style={{
+                              lineHeight: "2rem",
+                              fontFamily: "'Caveat', cursive",
+                              fontSize: "1.3rem",
+                            }}
+                          />
+                          <div className='flex justify-end gap-2 md:gap-3 pt-2'>
+                            <button
+                              onClick={() => {
+                                setIsAddingNote(false);
+                                setEditingNoteId(null);
+                                setNoteForm({ title: "", content: "" });
+                              }}
+                              className='px-3 md:px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-md text-xs md:text-sm font-medium transition-colors'
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={handleSaveNote}
+                              className='px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs md:text-sm font-medium shadow-sm transition-colors'
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        {activeTopic.notes?.length === 0 ? (
+                          <div className='text-center py-12 md:py-20 opacity-50 flex flex-col items-center'>
+                            <Edit2 className='w-10 h-10 md:w-12 md:h-12 mb-4 text-slate-400' />
+                            <p className='text-base md:text-lg font-serif'>
+                              Nenhuma anotação neste assunto ainda.
+                            </p>
+                          </div>
+                        ) : (
+                          activeTopic.notes?.map((note, index) => (
+                            <article
+                              key={note.id}
+                              className='group relative pr-2 md:pr-4'
+                              style={{
+                                marginBottom:
+                                  index < activeTopic.notes.length - 1
+                                    ? "4rem"
+                                    : "0",
+                              }}
+                            >
+                              <div className='absolute -left-3 md:-left-4 top-1 bottom-0 w-0.5 md:w-1 bg-linear-to-b from-transparent via-yellow-300/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity'></div>
+
+                              <div
+                                className='flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-0'
+                                style={{ lineHeight: "2rem" }}
+                              >
+                                <h3
+                                  className='text-lg md:text-xl font-bold text-slate-800 font-serif flex items-center gap-2'
+                                  style={{ lineHeight: "2rem" }}
+                                >
+                                  <span className='text-xs md:text-sm font-mono text-slate-400 bg-slate-100 px-1.5 md:px-2 py-0.5 rounded'>
+                                    #{index + 1}
+                                  </span>
+                                  {note.title}
+                                </h3>
+                                <div className='flex self-start opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white/80 rounded-md shadow-sm border border-slate-100'>
+                                  <button
+                                    onClick={() => handleEditNote(note)}
+                                    className='p-1.5 md:p-2 text-slate-400 hover:text-blue-500 transition-colors'
+                                  >
+                                    <Edit2 className='w-3 h-3 md:w-4 md:h-4' />
+                                  </button>
+                                  <div className='w-px bg-slate-200'></div>
+                                  <button
+                                    onClick={() => handleDeleteNote(note.id)}
+                                    className='p-1.5 md:p-2 text-slate-400 hover:text-red-500 transition-colors'
+                                  >
+                                    <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div
+                                className='text-slate-700 whitespace-pre-wrap font-medium mt-1 md:mt-0'
+                                style={{
+                                  lineHeight: "2rem",
+                                  textShadow: "0 1px 0 rgba(255,255,255,0.5)",
+                                  fontFamily: "'Caveat', cursive",
+                                  fontSize: "1.3rem", // Tamanho ligeiramente menor em mobile para caber melhor
+                                }}
+                              >
+                                {note.content}
+                              </div>
+                            </article>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className='flex-1 flex flex-col items-center justify-center bg-[#f0e9da] min-h-full text-slate-400 opacity-50 p-8'>
+              <BookOpen className='w-16 h-16 mb-4' />
+              <p className='text-xl font-serif'>
+                Selecione ou crie um assunto.
+              </p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* PWA Install Prompt */}
+      {showInstallPrompt && (
+        <div className='fixed bottom-0 left-0 right-0 p-4 md:p-6 z-[100] flex justify-center animate-in slide-in-from-bottom-10 fade-in duration-300'>
+          <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 max-w-lg w-full'>
+            <div className='bg-blue-100 p-3 rounded-xl shrink-0'>
+              <BookOpen className='w-6 h-6 text-blue-600' />
+            </div>
+            <div className='flex-1 text-center sm:text-left'>
+              <h3 className='font-bold text-slate-800 text-lg'>Instalar App</h3>
+              <p className='text-slate-600 text-sm'>
+                Adicione o Caderno Tiger ao ecrã inicial do seu telemóvel para um acesso mais rápido!
+              </p>
+            </div>
+            <div className='flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0'>
+              <button
+                onClick={() => setShowInstallPrompt(false)}
+                className='flex-1 sm:flex-none px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors'
+              >
+                Agora não
+              </button>
+              <button
+                onClick={handleInstallClick}
+                className='flex-1 sm:flex-none px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors'
+              >
+                Instalar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* iOS Instructions (since iOS doesn't support the prompt API properly) */}
+      {isIos && !window.matchMedia('(display-mode: standalone)').matches && (
+        <div className='fixed bottom-0 left-0 right-0 p-4 z-[100] md:hidden'>
+          <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl rounded-xl p-3 flex items-start gap-3 text-sm'>
+            <div className='mt-0.5 text-blue-500'>
+              <Bookmark className='w-5 h-5' />
+            </div>
+            <p className='text-slate-700 leading-tight'>
+              Para instalar no iOS: toque em <strong className='text-slate-900'>Partilhar</strong> e depois em <strong className='text-slate-900'>"Adicionar ao Ecrã Principal"</strong>.
+            </p>
+            <button onClick={() => setIsIos(false)} className='p-1 text-slate-400 shrink-0 ml-auto'>
+              <X className='w-4 h-4' />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
