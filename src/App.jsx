@@ -21,6 +21,7 @@ import {
   onAuthStateChanged,
   signInWithCustomToken,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
 
@@ -31,6 +32,7 @@ import {
   doc,
   setDoc,
   deleteDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { auth as localAuth, db as localDb } from "./config/firebase.js";
 import AreaLogin from "./components/AreaLogin";
@@ -101,6 +103,27 @@ export default function App() {
     } catch (error) {
       console.error("Erro no login:", error);
       alert("Credenciais incorretas ou erro ao conectar.");
+    }
+  };
+
+  const fazerCadastroComEmail = async (email, senha) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        senha,
+      );
+      const newUser = userCredential.user;
+      // Cria um documento para o novo usuário no Firestore
+      await setDoc(doc(db, "artifacts", appId, "users", newUser.uid), {
+        email: newUser.email,
+        createdAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Erro no cadastro:", error);
+      alert(
+        "Erro ao cadastrar. Verifique se o e-mail já está em uso ou se a senha é forte o suficiente.",
+      );
     }
   };
 
@@ -179,18 +202,17 @@ export default function App() {
 
   const handleAddNotebook = async () => {
     if (!newNotebookTitle.trim() || !user || !db) return;
-    const newId = Date.now().toString();
+    const newNotebookRef = doc(
+      collection(db, "artifacts", appId, "users", user.uid, "notebooks"),
+    );
     const newNotebook = {
-      id: newId,
+      id: newNotebookRef.id,
       title: newNotebookTitle,
       coverColor: newNotebookColor,
       topics: [],
     };
     try {
-      await setDoc(
-        doc(db, "artifacts", appId, "users", user.uid, "notebooks", newId),
-        newNotebook,
-      );
+      await setDoc(newNotebookRef, newNotebook);
       setIsAddingNotebook(false);
       setNewNotebookTitle("");
     } catch (error) {
@@ -213,7 +235,7 @@ export default function App() {
   const handleAddTopic = async () => {
     if (!newTopicTitle.trim() || !activeNotebookId || !user || !db) return;
     const newTopic = {
-      id: Date.now().toString(),
+      id: doc(collection(db, "_")).id,
       title: newTopicTitle,
       color: newTopicColor,
       notes: [],
@@ -286,7 +308,7 @@ export default function App() {
             notes: [
               ...topic.notes,
               {
-                id: Date.now().toString(),
+                id: doc(collection(db, "_")).id,
                 title: noteForm.title,
                 content: noteForm.content,
               },
@@ -378,7 +400,12 @@ export default function App() {
   }
 
   if (mostrarLogin) {
-    return <AreaLogin aoFazerLogin={fazerLoginComEmail} />;
+    return (
+      <AreaLogin
+        aoFazerLogin={fazerLoginComEmail}
+        aoFazerCadastro={fazerCadastroComEmail}
+      />
+    );
   }
 
   // --- Renderização da Estante (Home) ---
@@ -471,11 +498,11 @@ export default function App() {
             {notebooks.map((notebook) => (
               <div
                 key={notebook.id}
-                className='relative group perspective-1000 w-full max-w-[280px] mx-auto sm:max-w-none'
+                className='relative group perspective-1000 w-full max-w-70 mx-auto sm:max-w-none'
               >
                 <div
                   onClick={() => openNotebook(notebook.id)}
-                  className={`w-full aspect-[3/4] ${notebook.coverColor} rounded-r-2xl rounded-l-sm shadow-xl cursor-pointer transform transition-all duration-300 group-hover:-translate-y-2 group-hover:rotate-1 flex flex-col`}
+                  className={`w-full aspect-3/4 ${notebook.coverColor} rounded-r-2xl rounded-l-sm shadow-xl cursor-pointer transform transition-all duration-300 group-hover:-translate-y-2 group-hover:rotate-1 flex flex-col`}
                   style={{
                     boxShadow:
                       "inset 12px 0 20px -10px rgba(0,0,0,0.5), 5px 15px 25px -10px rgba(0,0,0,0.3)",
@@ -525,7 +552,7 @@ export default function App() {
   return (
     <div className='min-h-screen bg-neutral-200 p-0 md:p-8 font-sans selection:bg-blue-200 text-slate-800 flex justify-center items-center'>
       <div
-        className='w-full max-w-6xl h-[100dvh] md:h-[85vh] flex flex-col md:flex-row bg-[#e8e0d0] rounded-none md:rounded-3xl shadow-2xl relative overflow-hidden ring-0 md:ring-1 md:ring-black/5'
+        className='w-full max-w-6xl h-dvh md:h-[85vh] flex flex-col md:flex-row bg-[#e8e0d0] rounded-none md:rounded-3xl shadow-2xl relative overflow-hidden ring-0 md:ring-1 md:ring-black/5'
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.1'/%3E%3C/svg%3E")`,
         }}
@@ -550,9 +577,8 @@ export default function App() {
               >
                 {/* Adicionado mt-1 para o ícone ficar alinhado com a primeira linha do texto */}
                 <BookOpen className='w-4 h-4 md:w-5 md:h-5 text-amber-700 shrink-0 mt-0.5' />
-
-                {/* Aqui está o segredo: whitespace-normal e break-words fazem o texto descer de linha */}
-                <span className='whitespace-normal break-words'>
+                {/* Aqui está o segredo: whitespace-normal e break-word fazem o texto descer de linha */}
+                <span className='whitespace-normal break-word'>
                   {activeNotebook?.title}
                 </span>
               </h1>
@@ -571,7 +597,7 @@ export default function App() {
                   setActiveTopicId(topic.id);
                   setIsAddingNote(false);
                 }}
-                className={`group relative flex items-center justify-between p-2 md:p-3 rounded-lg cursor-pointer transition-all duration-200 shrink-0 min-w-[120px] md:min-w-0 border md:border-0 border-stone-200
+                className={`group relative flex items-center justify-between p-2 md:p-3 rounded-lg cursor-pointer transition-all duration-200 shrink-0 min-w-30 md:min-w-0 border md:border-0 border-stone-200
                   ${activeTopicId === topic.id ? "bg-white shadow-sm md:ring-1 md:ring-black/5 scale-100 md:scale-[1.02] border-stone-300" : "bg-white/50 md:bg-transparent hover:bg-white/50 text-slate-600"}
                 `}
               >
@@ -602,7 +628,7 @@ export default function App() {
             ))}
 
             {isAddingTopic ? (
-              <div className='bg-white p-3 rounded-lg shadow-sm ring-1 ring-blue-400/50 space-y-3 mt-0 md:mt-4 shrink-0 min-w-[180px] md:min-w-0'>
+              <div className='bg-white p-3 rounded-lg shadow-sm ring-1 ring-blue-400/50 space-y-3 mt-0 md:mt-4 shrink-0 min-w-45 md:min-w-0'>
                 <input
                   type='text'
                   placeholder='Nome...'
@@ -612,17 +638,14 @@ export default function App() {
                   autoFocus
                 />
                 <div className='flex gap-1 flex-wrap justify-center'>
-                  {TOPIC_COLORS.slice(0, 4).map(
-                    (
-                      c, // Mostramos menos cores no mobile para caber
-                    ) => (
-                      <button
-                        key={c}
-                        onClick={() => setNewTopicColor(c)}
-                        className={`w-4 h-4 md:w-5 md:h-5 rounded-full ${c} ${newTopicColor === c ? "ring-2 ring-offset-1 ring-slate-400" : "opacity-70 hover:opacity-100"}`}
-                      />
-                    ),
-                  )}
+                  {/* Mostramos menos cores no mobile para caber */}
+                  {TOPIC_COLORS.slice(0, 4).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setNewTopicColor(c)}
+                      className={`w-4 h-4 md:w-5 md:h-5 rounded-full ${c} ${newTopicColor === c ? "ring-2 ring-offset-1 ring-slate-400" : "opacity-70 hover:opacity-100"}`}
+                    />
+                  ))}
                 </div>
                 <div className='flex justify-end gap-2 pt-1'>
                   <button
@@ -642,7 +665,7 @@ export default function App() {
             ) : (
               <button
                 onClick={() => setIsAddingTopic(true)}
-                className='shrink-0 min-w-[120px] md:min-w-0 mt-0 md:mt-2 flex items-center justify-center gap-1 md:gap-2 p-2 md:p-3 text-xs md:text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-white/40 border border-dashed border-slate-300 rounded-lg transition-colors'
+                className='shrink-0 min-w-30 md:min-w-0 mt-0 md:mt-2 flex items-center justify-center gap-1 md:gap-2 p-2 md:p-3 text-xs md:text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-white/40 border border-dashed border-slate-300 rounded-lg transition-colors'
               >
                 <Plus className='w-3 h-3 md:w-4 md:h-4' /> Novo
               </button>
@@ -662,7 +685,7 @@ export default function App() {
               backgroundPosition: "0 1.8rem",
             }}
           >
-            <div className='absolute left-4 sm:left-8 md:left-16 top-0 bottom-0 w-[1px] md:w-0.5 bg-red-400/40 z-0'></div>
+            <div className='absolute left-4 sm:left-8 md:left-16 top-0 bottom-0 w-px md:w-0.5 bg-red-400/40 z-0'></div>
             {activeTopic ? (
               <div className='max-w-3xl mx-auto pl-4 md:pl-0'>
                 {/* Header da Aula - Responsivo */}
@@ -678,7 +701,7 @@ export default function App() {
                       <Bookmark
                         className={`w-4 h-4 md:w-5 md:h-5 text-${activeTopic.color.split("-")[1]}-500 shrink-0`}
                       />
-                      <h2 className='text-2xl md:text-3xl font-serif text-slate-800 tracking-tight break-words'>
+                      <h2 className='text-2xl md:text-3xl font-serif text-slate-800 tracking-tight break-word'>
                         {activeTopic.title}
                       </h2>
                     </div>
@@ -766,7 +789,7 @@ export default function App() {
                                 : "0",
                           }}
                         >
-                          <div className='absolute -left-3 md:-left-4 top-1 bottom-0 w-[2px] md:w-1 bg-linear-to-b from-transparent via-yellow-300/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity'></div>
+                          <div className='absolute -left-3 md:-left-4 top-1 bottom-0 w-0.5 md:w-1 bg-linear-to-b from-transparent via-yellow-300/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity'></div>
 
                           <div
                             className='flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-0'
