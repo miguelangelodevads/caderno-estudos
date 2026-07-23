@@ -1,5 +1,6 @@
-/* global __firebase_config, __app_id, __initial_auth_token */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import ContentEditableModule from 'react-contenteditable';
+const ContentEditable = ContentEditableModule.default || ContentEditableModule;
 import {
   Plus,
   Trash2,
@@ -16,6 +17,9 @@ import {
   ChevronUp,
   ChevronDown,
   Menu,
+  ArrowUp,
+  ArrowDown,
+  Eraser,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 
@@ -78,6 +82,50 @@ const TOPIC_COLORS = [
   "bg-orange-400",
 ];
 
+const HIGHLIGHT_COLORS = [
+  { id: 'yellow', bg: 'bg-yellow-200', hex: '#fef08a' },
+  { id: 'green', bg: 'bg-green-200', hex: '#bbf7d0' },
+  { id: 'blue', bg: 'bg-blue-200', hex: '#bfdbfe' },
+  { id: 'pink', bg: 'bg-pink-200', hex: '#fbcfe8' },
+  { id: 'purple', bg: 'bg-purple-200', hex: '#e9d5ff' },
+  { id: 'eraser', bg: 'bg-slate-200', hex: 'transparent', isEraser: true },
+];
+
+const convertTagsToHtml = (text) => {
+  if (!text) return "";
+  let html = text.replace(/\[h-(yellow|green|blue|pink|purple)\]([\s\S]*?)\[\/h-\1\]/g, (match, color, content) => {
+    const config = HIGHLIGHT_COLORS.find(c => c.id === color);
+    return `<span style="background-color: ${config ? config.hex : '#fef08a'}; border-radius: 2px;">${content}</span>`;
+  });
+  return html;
+};
+
+const getRenderedContentHtml = (text) => {
+  if (!text) return "";
+  let html = text;
+  if (html.includes("[h-")) {
+    html = convertTagsToHtml(html);
+  }
+  // Convert newlines to <br> only if there are no block tags to avoid double spacing in WYSIWYG
+  if (!html.includes("<br") && !html.includes("<div") && html.includes("\n")) {
+    html = html.replace(/\n/g, "<br>");
+  }
+  return html;
+};
+
+const getCursorStyle = (penId) => {
+  if (!penId) return "text";
+  const config = HIGHLIGHT_COLORS.find(c => c.id === penId);
+  if (!config) return "text";
+  if (config.isEraser) {
+    const eraserSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="white" stroke="black" stroke-width="1.5"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"></path><path d="M22 21H7"></path><path d="m5 11 9 9"></path></svg>`;
+    return `url("data:image/svg+xml;utf8,${encodeURIComponent(eraserSvg)}") 0 24, auto`;
+  }
+  const hex = config.hex;
+  const penSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="${hex}" stroke="black" stroke-width="1.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>`;
+  return `url("data:image/svg+xml;utf8,${encodeURIComponent(penSvg)}") 2 22, text`;
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!!auth);
@@ -98,6 +146,9 @@ export default function App() {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteForm, setNoteForm] = useState({ title: "", content: "" });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const [activePenColor, setActivePenColor] = useState(null);
+  const contentEditableRef = useRef(null);
 
   const [mostrarLogin, setMostrarLogin] = useState(true);
 
@@ -438,8 +489,63 @@ export default function App() {
     }
   };
 
+  const handleMoveNote = async (noteIndex, direction) => {
+    if (!activeNotebook || !user || !db) return;
+    const updatedTopics = activeNotebook.topics.map((topic) => {
+      if (topic.id === activeTopicId) {
+        const notes = [...topic.notes];
+        if (direction === "up" && noteIndex > 0) {
+          [notes[noteIndex - 1], notes[noteIndex]] = [notes[noteIndex], notes[noteIndex - 1]];
+        } else if (direction === "down" && noteIndex < notes.length - 1) {
+          [notes[noteIndex + 1], notes[noteIndex]] = [notes[noteIndex], notes[noteIndex + 1]];
+        }
+        return { ...topic, notes };
+      }
+      return topic;
+    });
+    const updatedNotebook = { ...activeNotebook, topics: updatedTopics };
+    try {
+      await setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "users",
+          user.uid,
+          "notebooks",
+          activeNotebookId,
+        ),
+        updatedNotebook,
+      );
+    } catch (error) {
+      console.error("Erro ao mover anotação:", error);
+    }
+  };
+
+  const autoSaveNoteContent = async (noteId, newHtml) => {
+    if (!activeNotebook || !user || !db) return;
+    const updatedTopics = activeNotebook.topics.map((topic) => {
+      if (topic.id === activeTopicId) {
+        return {
+          ...topic,
+          notes: topic.notes.map((n) => (n.id === noteId ? { ...n, content: newHtml } : n)),
+        };
+      }
+      return topic;
+    });
+    const updatedNotebook = { ...activeNotebook, topics: updatedTopics };
+    try {
+      await setDoc(
+        doc(db, "artifacts", appId, "users", user.uid, "notebooks", activeNotebookId),
+        updatedNotebook
+      );
+    } catch (error) {
+      console.error("Erro ao auto-salvar anotação:", error);
+    }
+  };
+
   const handleEditNote = (note) => {
-    setNoteForm({ title: note.title, content: note.content });
+    setNoteForm({ title: note.title, content: getRenderedContentHtml(note.content) });
     setEditingNoteId(note.id);
     setIsAddingNote(true);
   };
@@ -823,12 +929,27 @@ export default function App() {
                   </p>
                 </div>
                 {!isAddingNote && (
-                  <button
-                    onClick={() => setIsAddingNote(true)}
-                    className='bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-2 text-sm font-medium transition-all w-full sm:w-auto'
-                  >
-                    <Plus className='w-4 h-4' /> Adicionar Aula
-                  </button>
+                  <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap justify-end">
+                    <div className='flex items-center gap-2 bg-white/60 p-2 rounded-md border border-slate-200/60 shadow-sm'>
+                      <span className='text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden md:inline-block'>Marca-texto:</span>
+                      {HIGHLIGHT_COLORS.map(color => (
+                        <button
+                          key={color.id}
+                          onClick={() => setActivePenColor(activePenColor === color.id ? null : color.id)}
+                          className={`w-6 h-6 rounded-full ${color.bg} transition-all shadow-sm border flex items-center justify-center ${activePenColor === color.id ? 'ring-2 ring-offset-1 ring-blue-500 scale-110' : 'border-black/10 hover:scale-105'}`}
+                          title={color.isEraser ? 'Borracha' : `Caneta ${color.id}`}
+                        >
+                          {color.isEraser && <Eraser className="w-3.5 h-3.5 text-slate-500" />}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setIsAddingNote(true)}
+                      className='bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-2 text-sm font-medium transition-all w-full sm:w-auto shrink-0'
+                    >
+                      <Plus className='w-4 h-4' /> Adicionar Aula
+                    </button>
+                  </div>
                 )}
               </header>
 
@@ -864,16 +985,16 @@ export default function App() {
                             }
                             className='w-full text-base md:text-lg bg-transparent border-b-2 border-slate-200 focus:border-blue-400 outline-none pb-2 font-medium'
                           />
-                          <textarea
-                            placeholder='Escreva os seus resumos aqui...'
-                            value={noteForm.content}
+                          <ContentEditable
+                            innerRef={contentEditableRef}
+                            html={noteForm.content}
                             onChange={(e) =>
                               setNoteForm({
                                 ...noteForm,
                                 content: e.target.value,
                               })
                             }
-                            className='w-full h-32 md:h-48 bg-transparent border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none resize-none text-slate-700'
+                            className='w-full min-h-[12rem] bg-white/50 border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none text-slate-700 overflow-y-auto shadow-inner'
                             style={{
                               lineHeight: "2rem",
                               fontFamily: "'Caveat', cursive",
@@ -937,6 +1058,30 @@ export default function App() {
                                   {note.title}
                                 </h3>
                                 <div className='flex self-start opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white/80 rounded-md shadow-sm border border-slate-100'>
+                                  {index > 0 && (
+                                    <>
+                                      <button
+                                        onClick={() => handleMoveNote(index, "up")}
+                                        className='p-1.5 md:p-2 text-slate-400 hover:text-blue-500 transition-colors'
+                                        title='Mover para cima'
+                                      >
+                                        <ArrowUp className='w-3 h-3 md:w-4 md:h-4' />
+                                      </button>
+                                      <div className='w-px bg-slate-200'></div>
+                                    </>
+                                  )}
+                                  {index < activeTopic.notes.length - 1 && (
+                                    <>
+                                      <button
+                                        onClick={() => handleMoveNote(index, "down")}
+                                        className='p-1.5 md:p-2 text-slate-400 hover:text-blue-500 transition-colors'
+                                        title='Mover para baixo'
+                                      >
+                                        <ArrowDown className='w-3 h-3 md:w-4 md:h-4' />
+                                      </button>
+                                      <div className='w-px bg-slate-200'></div>
+                                    </>
+                                  )}
                                   <button
                                     onClick={() => handleEditNote(note)}
                                     className='p-1.5 md:p-2 text-slate-400 hover:text-blue-500 transition-colors'
@@ -953,17 +1098,44 @@ export default function App() {
                                 </div>
                               </div>
 
-                              <div
-                                className='text-slate-700 whitespace-pre-wrap font-medium'
+                              <ContentEditable
+                                html={getRenderedContentHtml(note.content)}
+                                disabled={!activePenColor}
+                                onChange={() => {}}
+                                onKeyDown={(e) => {
+                                  if (!e.ctrlKey && !e.metaKey) {
+                                    e.preventDefault();
+                                  }
+                                }}
+                                onMouseMove={(e) => {
+                                  if (activePenColor && e.buttons === 1) {
+                                    const selection = window.getSelection();
+                                    if (selection && selection.toString().length > 0) {
+                                      const colorConfig = HIGHLIGHT_COLORS.find(c => c.id === activePenColor);
+                                      if (colorConfig) {
+                                        if (colorConfig.isEraser) {
+                                          document.execCommand('backColor', false, 'transparent');
+                                        } else {
+                                          document.execCommand('backColor', false, colorConfig.hex);
+                                        }
+                                      }
+                                    }
+                                  }
+                                }}
+                                onMouseUp={(e) => {
+                                  if (activePenColor) {
+                                    autoSaveNoteContent(note.id, e.currentTarget.innerHTML);
+                                  }
+                                }}
+                                className={`text-slate-700 whitespace-pre-wrap font-medium outline-none ${activePenColor ? 'selection:bg-transparent selection:text-inherit' : ''}`}
                                 style={{
                                   lineHeight: "2rem",
                                   textShadow: "0 1px 0 rgba(255,255,255,0.5)",
                                   fontFamily: "'Caveat', cursive",
                                   fontSize: "1.3rem", // Tamanho ligeiramente menor em mobile para caber melhor
+                                  cursor: getCursorStyle(activePenColor)
                                 }}
-                              >
-                                {note.content}
-                              </div>
+                              />
                             </article>
                           ))
                         )}

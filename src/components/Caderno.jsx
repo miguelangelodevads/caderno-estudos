@@ -8,6 +8,8 @@ import {
   X,
   Bookmark,
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 const TOPIC_COLORS = [
@@ -79,6 +81,25 @@ export default function Caderno({ notebook, onClose, onUpdateNotebook }) {
     const updatedTopics = notebook.topics.map((topic) => {
       if (topic.id === activeTopicId)
         return { ...topic, notes: topic.notes.filter((n) => n.id !== noteId) };
+      return topic;
+    });
+    onUpdateNotebook({ ...notebook, topics: updatedTopics });
+  };
+
+  const handleMoveNote = (noteId, direction) => {
+    const updatedTopics = notebook.topics.map((topic) => {
+      if (topic.id === activeTopicId) {
+        const noteIndex = topic.notes.findIndex((n) => n.id === noteId);
+        if (noteIndex === -1) return topic;
+
+        const newNotes = [...topic.notes];
+        if (direction === "up" && noteIndex > 0) {
+          [newNotes[noteIndex - 1], newNotes[noteIndex]] = [newNotes[noteIndex], newNotes[noteIndex - 1]];
+        } else if (direction === "down" && noteIndex < newNotes.length - 1) {
+          [newNotes[noteIndex + 1], newNotes[noteIndex]] = [newNotes[noteIndex], newNotes[noteIndex + 1]];
+        }
+        return { ...topic, notes: newNotes };
+      }
       return topic;
     });
     onUpdateNotebook({ ...notebook, topics: updatedTopics });
@@ -258,6 +279,24 @@ export default function Caderno({ notebook, onClose, onUpdateNotebook }) {
                           {note.title}
                         </h3>
                         <div className='flex opacity-0 group-hover:opacity-100 bg-slate-100 rounded-md'>
+                          {idx > 0 && (
+                            <button
+                              onClick={() => handleMoveNote(note.id, "up")}
+                              className='p-2 text-slate-500 hover:text-blue-500'
+                              title='Mover para cima'
+                            >
+                              <ArrowUp className='w-4 h-4' />
+                            </button>
+                          )}
+                          {idx < activeTopic.notes.length - 1 && (
+                            <button
+                              onClick={() => handleMoveNote(note.id, "down")}
+                              className='p-2 text-slate-500 hover:text-blue-500'
+                              title='Mover para baixo'
+                            >
+                              <ArrowDown className='w-4 h-4' />
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setNoteForm({
