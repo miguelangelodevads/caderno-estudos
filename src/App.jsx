@@ -42,6 +42,7 @@ import {
 } from "firebase/firestore";
 import { auth as localAuth, db as localDb } from "./config/firebase.js";
 import AreaLogin from "./components/AreaLogin";
+import { sanitizeHtmlContent } from "./utils/sanitize.js";
 
 const firebaseConfig =
   typeof __firebase_config !== "undefined" && __firebase_config
@@ -216,10 +217,15 @@ export default function App() {
         dbUnsubscribe = onSnapshot(
           notebooksRef,
           (snapshot) => {
-            const loadedNotebooks = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
+            const loadedNotebooks = snapshot.docs
+              .map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              }))
+              .filter(
+                (notebook) =>
+                  !notebook.ownerUid || notebook.ownerUid === currentUser.uid,
+              );
             setNotebooks(loadedNotebooks);
             setLoading(false);
           },
@@ -252,6 +258,7 @@ export default function App() {
     );
     const newNotebook = {
       id: newNotebookRef.id,
+      ownerUid: user.uid,
       title: newNotebookTitle,
       coverColor: newNotebookColor,
       topics: [],
@@ -365,6 +372,7 @@ export default function App() {
 
   const handleSaveNote = async () => {
     if (!noteForm.title.trim() || !activeNotebook || !user || !db) return;
+    const sanitizedContent = sanitizeHtmlContent(noteForm.content);
     const updatedTopics = activeNotebook.topics.map((topic) => {
       if (topic.id === activeTopicId) {
         if (editingNoteId) {
@@ -372,7 +380,7 @@ export default function App() {
             ...topic,
             notes: topic.notes.map((note) =>
               note.id === editingNoteId
-                ? { ...note, title: noteForm.title, content: noteForm.content }
+                ? { ...note, title: noteForm.title, content: sanitizedContent }
                 : note,
             ),
           };
@@ -384,7 +392,7 @@ export default function App() {
               {
                 id: doc(collection(db, "_")).id,
                 title: noteForm.title,
-                content: noteForm.content,
+                content: sanitizedContent,
               },
             ],
           };
@@ -392,7 +400,11 @@ export default function App() {
       }
       return topic;
     });
-    const updatedNotebook = { ...activeNotebook, topics: updatedTopics };
+    const updatedNotebook = {
+      ...activeNotebook,
+      ownerUid: activeNotebook.ownerUid || user.uid,
+      topics: updatedTopics,
+    };
     try {
       await setDoc(
         doc(
@@ -485,18 +497,23 @@ export default function App() {
 
   const autoSaveNoteContent = async (noteId, newHtml) => {
     if (!activeNotebook || !user || !db) return;
+    const safeHtml = sanitizeHtmlContent(newHtml);
     const updatedTopics = activeNotebook.topics.map((topic) => {
       if (topic.id === activeTopicId) {
         return {
           ...topic,
           notes: topic.notes.map((n) =>
-            n.id === noteId ? { ...n, content: newHtml } : n,
+            n.id === noteId ? { ...n, content: safeHtml } : n,
           ),
         };
       }
       return topic;
     });
-    const updatedNotebook = { ...activeNotebook, topics: updatedTopics };
+    const updatedNotebook = {
+      ...activeNotebook,
+      ownerUid: activeNotebook.ownerUid || user.uid,
+      topics: updatedTopics,
+    };
     try {
       await setDoc(
         doc(
@@ -516,7 +533,10 @@ export default function App() {
   };
 
   const handleEditNote = (note) => {
-    setNoteForm({ title: note.title, content: note.content || "" });
+    setNoteForm({
+      title: note.title,
+      content: sanitizeHtmlContent(note.content || ""),
+    });
     setEditingNoteId(note.id);
     setIsAddingNote(true);
   };
@@ -947,7 +967,7 @@ export default function App() {
                             onChange={(e) =>
                               setNoteForm({
                                 ...noteForm,
-                                content: e.target.value,
+                                content: sanitizeHtmlContent(e.target.value),
                               })
                             }
                             className='w-full min-h-48 bg-white/50 border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none text-slate-700 overflow-y-auto shadow-inner'
@@ -1059,7 +1079,7 @@ export default function App() {
                               </div>
 
                               <ContentEditable
-                                html={note.content || ""}
+                                html={sanitizeHtmlContent(note.content || "")}
                                 onChange={(e) => {
                                   autoSaveNoteContent(note.id, e.target.value);
                                 }}
