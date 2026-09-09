@@ -1,4 +1,3 @@
-/* global __app_id, __initial_auth_token */
 import { useState, useEffect } from "react";
 import {
   signInWithCustomToken,

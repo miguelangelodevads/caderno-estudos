@@ -108,14 +108,12 @@ export default function App() {
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [isIos, setIsIos] = useState(false);
+  const [isIos, setIsIos] = useState(() => {
+    if (typeof navigator === "undefined") return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  });
 
   useEffect(() => {
-    // Detectar iOS para mostrar instruções alternativas
-    const isIosDevice =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    setIsIos(isIosDevice);
-
     // Capturar o evento de instalação (Android/Chrome)
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
@@ -715,7 +713,7 @@ export default function App() {
             </button>
             <div className='flex items-center gap-2'>
               <BookOpen className='w-5 h-5 text-amber-700' />
-              <span className='font-bold text-slate-800 font-mono truncate max-w-[150px]'>
+              <span className='font-bold text-slate-800 font-mono truncate max-w-37.5'>
                 {activeNotebook.title}
               </span>
             </div>
@@ -746,7 +744,7 @@ export default function App() {
           ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
         >
-          <div className='p-5 border-b border-neutral-300/50 bg-[#e3dfd6] shrink-0 flex flex-col justify-center md:h-[130px]'>
+          <div className='p-5 border-b border-neutral-300/50 bg-[#e3dfd6] shrink-0 flex flex-col justify-center md:h-32.5'>
             <button
               onClick={closeNotebook}
               className='hidden md:flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm font-medium mb-3'
@@ -886,7 +884,7 @@ export default function App() {
           {activeTopic ? (
             <>
               {/* Header Edge-to-Edge */}
-              <header className='bg-[#e3dfd6] p-4 sm:p-6 md:px-12 md:py-0 border-b border-neutral-300/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0 z-20 shrink-0 md:h-[130px]'>
+              <header className='bg-[#e3dfd6] p-4 sm:p-6 md:px-12 md:py-0 border-b border-neutral-300/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0 z-20 shrink-0 md:h-32.5'>
                 <div>
                   <div className='flex items-center gap-2'>
                     <Bookmark
@@ -952,7 +950,7 @@ export default function App() {
                                 content: e.target.value,
                               })
                             }
-                            className='w-full min-h-[12rem] bg-white/50 border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none text-slate-700 overflow-y-auto shadow-inner'
+                            className='w-full min-h-48 bg-white/50 border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none text-slate-700 overflow-y-auto shadow-inner'
                             style={{
                               lineHeight: "2rem",
                               fontFamily: "'Caveat', cursive",
@@ -1095,7 +1093,7 @@ export default function App() {
 
       {/* PWA Install Prompt */}
       {showInstallPrompt && (
-        <div className='fixed bottom-0 left-0 right-0 p-4 md:p-6 z-[100] flex justify-center animate-in slide-in-from-bottom-10 fade-in duration-300'>
+        <div className='fixed bottom-0 left-0 right-0 p-4 md:p-6 z-100 flex justify-center animate-in slide-in-from-bottom-10 fade-in duration-300'>
           <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 max-w-lg w-full'>
             <div className='bg-blue-100 p-3 rounded-xl shrink-0'>
               <BookOpen className='w-6 h-6 text-blue-600' />
@@ -1127,7 +1125,7 @@ export default function App() {
 
       {/* iOS Instructions (since iOS doesn't support the prompt API properly) */}
       {isIos && !window.matchMedia("(display-mode: standalone)").matches && (
-        <div className='fixed bottom-0 left-0 right-0 p-4 z-[100] md:hidden'>
+        <div className='fixed bottom-0 left-0 right-0 p-4 z-100 md:hidden'>
           <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl rounded-xl p-3 flex items-start gap-3 text-sm'>
             <div className='mt-0.5 text-blue-500'>
               <Bookmark className='w-5 h-5' />
