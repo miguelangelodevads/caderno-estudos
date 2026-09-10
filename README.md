@@ -23,6 +23,7 @@ Configure no `.env.local`:
 
 - `VITE_MERCADO_PAGO_PAYMENT_URL`: link de pagamento criado no Mercado Pago.
 - `VITE_PAYMENT_SUPPORT_EMAIL`: e-mail que receberá os comprovantes.
+- `VITE_PAYMENT_SUPPORT_WHATSAPP`: WhatsApp para receber os comprovantes, no formato `5585987110571`.
 
 Depois de confirmar o pagamento no painel do Mercado Pago, o responsável deve atualizar o perfil do usuário no Firestore com `lifetimeAccess: true`. O usuário deve entrar novamente para acessar o app.
 

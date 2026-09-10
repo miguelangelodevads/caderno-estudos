@@ -1,7 +1,9 @@
-import { ExternalLink, Mail, QrCode } from "lucide-react";
+import { ExternalLink, Mail, MessageCircle, QrCode } from "lucide-react";
 
 const PAYMENT_LINK = import.meta.env.VITE_MERCADO_PAGO_PAYMENT_URL;
 const SUPPORT_EMAIL = import.meta.env.VITE_PAYMENT_SUPPORT_EMAIL;
+const SUPPORT_WHATSAPP =
+  import.meta.env.VITE_PAYMENT_SUPPORT_WHATSAPP || "5585987110571";
 
 export default function PagamentoAcesso({ user }) {
   return (
@@ -37,9 +39,26 @@ export default function PagamentoAcesso({ user }) {
 
         <div className='mt-6 text-sm text-stone-500 space-y-2'>
           <p>
-            Depois do pagamento, envie o comprovante a{" "}
-            <strong>{SUPPORT_EMAIL || "o responsável pelo app"}</strong>.
+            Depois do pagamento, envie o comprovante por uma das opções abaixo:
           </p>
+          <div className='flex flex-col sm:flex-row gap-2 pt-2'>
+            {SUPPORT_EMAIL && (
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className='flex-1 flex items-center justify-center gap-2 border border-stone-300 hover:bg-stone-100 text-stone-700 font-medium py-2.5 rounded-lg transition-colors'
+              >
+                <Mail className='w-4 h-4' /> E-mail
+              </a>
+            )}
+            <a
+              href={`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(`Olá! Fiz o pagamento do Caderno de Estudos. Minha conta é ${user.email}. Segue o comprovante.`)}`}
+              target='_blank'
+              rel='noreferrer'
+              className='flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 rounded-lg transition-colors'
+            >
+              <MessageCircle className='w-4 h-4' /> WhatsApp
+            </a>
+          </div>
           <p>A confirmação e a liberação do acesso serão feitas manualmente.</p>
         </div>
 
