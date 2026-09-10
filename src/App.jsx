@@ -37,11 +37,13 @@ import {
   onSnapshot,
   doc,
   setDoc,
+  runTransaction,
   deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { auth as localAuth, db as localDb } from "./config/firebase.js";
 import AreaLogin from "./components/AreaLogin";
+import PagamentoAcesso from "./components/PagamentoAcesso";
 import { sanitizeHtmlContent } from "./utils/sanitize.js";
 
 const firebaseConfig =
@@ -104,8 +106,10 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const contentEditableRef = useRef(null);
+  const skipNextAccessCountRef = useRef(false);
 
   const [mostrarLogin, setMostrarLogin] = useState(true);
+  const [acessoLiberado, setAcessoLiberado] = useState(false);
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -154,6 +158,7 @@ export default function App() {
 
   const fazerCadastroComEmail = async (email, senha) => {
     try {
+      skipNextAccessCountRef.current = true;
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -164,8 +169,11 @@ export default function App() {
       await setDoc(doc(db, "artifacts", appId, "users", newUser.uid), {
         email: newUser.email,
         createdAt: serverTimestamp(),
+        accessCount: 1,
+        lifetimeAccess: false,
       });
     } catch (error) {
+      skipNextAccessCountRef.current = false;
       console.error("Erro no cadastro:", error);
       alert(
         "Erro ao cadastrar. Verifique se o e-mail já está em uso ou se a senha é forte o suficiente.",
@@ -199,13 +207,75 @@ export default function App() {
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       dbUnsubscribe();
       setUser(currentUser);
 
       if (currentUser && !currentUser.isAnonymous) {
-        setMostrarLogin(false);
         setLoading(true);
+        const profileRef = doc(
+          db,
+          "artifacts",
+          appId,
+          "users",
+          currentUser.uid,
+        );
+        try {
+          const profileSnapshot = await runTransaction(
+            db,
+            async (transaction) => {
+              const currentProfile = await transaction.get(profileRef);
+              const profile = currentProfile.exists()
+                ? currentProfile.data()
+                : {};
+              const accessCount = Number(profile.accessCount || 0);
+              const isNewRegistration = skipNextAccessCountRef.current;
+              skipNextAccessCountRef.current = false;
+
+              if (!currentProfile.exists()) {
+                transaction.set(profileRef, {
+                  email: currentUser.email,
+                  createdAt: serverTimestamp(),
+                  accessCount: 1,
+                  lifetimeAccess: false,
+                });
+                return { accessCount: 1, lifetimeAccess: false };
+              }
+
+              // Perfis criados antes da cobrança são usuários legados da fase de testes.
+              if (
+                !Object.prototype.hasOwnProperty.call(profile, "accessCount")
+              ) {
+                transaction.update(profileRef, {
+                  accessCount: 1,
+                  lifetimeAccess: true,
+                });
+                return { accessCount: 1, lifetimeAccess: true };
+              }
+
+              if (isNewRegistration) {
+                return {
+                  accessCount: Math.max(accessCount, 1),
+                  lifetimeAccess: profile.lifetimeAccess === true,
+                };
+              }
+
+              const nextAccessCount = Math.max(accessCount, 1) + 1;
+              transaction.update(profileRef, { accessCount: nextAccessCount });
+              return {
+                accessCount: nextAccessCount,
+                lifetimeAccess: profile.lifetimeAccess === true,
+              };
+            },
+          );
+          const profile = profileSnapshot;
+          setAcessoLiberado(profile.lifetimeAccess || profile.accessCount <= 1);
+          setMostrarLogin(false);
+        } catch (error) {
+          console.error("Erro ao verificar acesso:", error);
+          setLoading(false);
+          return;
+        }
         const notebooksRef = collection(
           db,
           "artifacts",
@@ -569,6 +639,15 @@ export default function App() {
       <AreaLogin
         aoFazerLogin={fazerLoginComEmail}
         aoFazerCadastro={fazerCadastroComEmail}
+      />
+    );
+  }
+
+  if (!acessoLiberado) {
+    return (
+      <PagamentoAcesso
+        user={user}
+        onAccessGranted={() => setAcessoLiberado(true)}
       />
     );
   }

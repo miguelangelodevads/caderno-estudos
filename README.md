@@ -14,3 +14,16 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## Pagamento Pix
+
+O app libera o primeiro acesso gratuitamente. No login seguinte, ele exibe um link fixo do Mercado Pago para um pagamento único de R$ 2,99.
+
+Configure no `.env.local`:
+
+- `VITE_MERCADO_PAGO_PAYMENT_URL`: link de pagamento criado no Mercado Pago.
+- `VITE_PAYMENT_SUPPORT_EMAIL`: e-mail que receberá os comprovantes.
+
+Depois de confirmar o pagamento no painel do Mercado Pago, o responsável deve atualizar o perfil do usuário no Firestore com `lifetimeAccess: true`. O usuário deve entrar novamente para acessar o app.
+
+Neste modo manual, o Access Token do Mercado Pago não é necessário no frontend e não deve ser colocado em uma variável `VITE_*`.
