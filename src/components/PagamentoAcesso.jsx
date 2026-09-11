@@ -5,7 +5,7 @@ const SUPPORT_EMAIL = import.meta.env.VITE_PAYMENT_SUPPORT_EMAIL;
 const SUPPORT_WHATSAPP =
   import.meta.env.VITE_PAYMENT_SUPPORT_WHATSAPP || "5585987110571";
 
-export default function PagamentoAcesso({ user }) {
+export default function PagamentoAcesso({ user, onLogout }) {
   return (
     <div className='min-h-screen bg-[#efebe1] flex items-center justify-center p-4 text-stone-800'>
       <div className='bg-[#f8f5ee] w-full max-w-lg rounded-2xl shadow-xl p-6 sm:p-8 border border-stone-200 text-center'>
@@ -65,6 +65,14 @@ export default function PagamentoAcesso({ user }) {
         <div className='mt-6 flex items-center justify-center gap-2 text-xs text-stone-500'>
           <Mail className='w-4 h-4' /> Conta: {user.email}
         </div>
+
+        <button
+          type='button'
+          onClick={onLogout}
+          className='mt-4 text-sm text-stone-500 hover:text-stone-800 hover:underline transition-colors'
+        >
+          Sair / Trocar de conta
+        </button>
       </div>
     </div>
   );

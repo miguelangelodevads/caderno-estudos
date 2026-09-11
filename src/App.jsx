@@ -648,6 +648,7 @@ export default function App() {
       <PagamentoAcesso
         user={user}
         onAccessGranted={() => setAcessoLiberado(true)}
+        onLogout={fazerLogout}
       />
     );
   }
