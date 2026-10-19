@@ -1,30 +1,82 @@
-# React + Vite
+# 📚 Caderno de Estudos
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+### Organização de assuntos, aulas e anotações
 
-Currently, two official plugins are available:
+Aplicação web para organizar estudos em uma interface inspirada
+em um caderno, com edição de conteúdo e integração com Firebase.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Funcionalidades
 
-## React Compiler
+- Criação de assuntos identificados por cores.
+- Inclusão, edição e exclusão de anotações.
+- Reordenação das aulas dentro de cada assunto.
+- Edição de conteúdo com salvamento automático.
+- Sanitização do HTML das anotações.
+- Interface adaptada para celular e computador.
+- Orientações de instalação como aplicativo.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tecnologias
 
-## Expanding the ESLint configuration
+| Tecnologia | Aplicação |
+| --- | --- |
+| React | Interface e gerenciamento de estado |
+| Firebase | Serviços de autenticação e dados |
+| DOMPurify | Sanitização de conteúdo HTML |
+| React ContentEditable | Edição das anotações |
+| Tailwind CSS | Estilização |
+| Vite | Desenvolvimento e build |
+| Vite PWA Plugin | Configuração de PWA |
+| Lucide React | Ícones |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Executar localmente
 
-## Pagamento Pix
+Com Node.js e npm instalados:
 
-O app libera o primeiro acesso gratuitamente. No login seguinte, ele exibe um link fixo do Mercado Pago para um pagamento único de R$ 2,99.
+```sh
+git clone https://github.com/miguelangelodevads/caderno-estudos.git
+cd caderno-estudos
+npm install
+npm run dev
+```
+
+Os recursos integrados ao Firebase dependem da configuração
+do ambiente e dos serviços correspondentes.
+
+## Comandos
+
+| Comando | Finalidade |
+| --- | --- |
+| `npm run dev` | Iniciar o desenvolvimento |
+| `npm run lint` | Executar análise estática |
+| `npm run build` | Gerar a versão de produção |
+| `npm run preview` | Visualizar o build localmente |
+
+## Acesso e pagamento manual
+
+O fluxo documentado neste repositório libera o primeiro acesso
+gratuitamente. No login seguinte, apresenta um link fixo do
+Mercado Pago para pagamento único de R$ 2,99.
 
 Configure no `.env.local`:
 
-- `VITE_MERCADO_PAGO_PAYMENT_URL`: link de pagamento criado no Mercado Pago.
-- `VITE_PAYMENT_SUPPORT_EMAIL`: e-mail que receberá os comprovantes.
-- `VITE_PAYMENT_SUPPORT_WHATSAPP`: WhatsApp para receber os comprovantes, no formato `5585987110571`.
+- `VITE_MERCADO_PAGO_PAYMENT_URL`: link de pagamento.
+- `VITE_PAYMENT_SUPPORT_EMAIL`: e-mail para comprovantes.
+- `VITE_PAYMENT_SUPPORT_WHATSAPP`: WhatsApp com país e DDD.
 
-Depois de confirmar o pagamento no painel do Mercado Pago, o responsável deve atualizar o perfil do usuário no Firestore com `lifetimeAccess: true`. O usuário deve entrar novamente para acessar o app.
+Após confirmar o pagamento no painel do Mercado Pago,
+o responsável atualiza o perfil no Firestore com
+`lifetimeAccess: true`. O usuário deve entrar novamente.
 
-Neste modo manual, o Access Token do Mercado Pago não é necessário no frontend e não deve ser colocado em uma variável `VITE_*`.
+O Access Token do Mercado Pago não é necessário nesse
+fluxo manual e não deve ser colocado em variáveis `VITE_*`.
+
+## Estado do projeto
+
+Projeto de portfólio em evolução. A disponibilidade dos
+recursos depende da configuração dos serviços externos.
+
+## Autor
+
+**Miguel Angelo — desenvolvedor de software júnior.**
+
+[Conheça meu portfólio](https://miguel-angelo-portifolio.vercel.app/)
