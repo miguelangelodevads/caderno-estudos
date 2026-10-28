@@ -2,6 +2,7 @@ import hljs from "highlight.js/lib/common";
 import powershell from "highlight.js/lib/languages/powershell";
 import dart from "highlight.js/lib/languages/dart";
 import beautifier from "js-beautify/js/lib/beautifier.js";
+import { splitMixedContent } from "./mixedContent.js";
 
 hljs.registerLanguage("powershell", powershell);
 hljs.registerLanguage("dart", dart);
@@ -22,7 +23,7 @@ function languageHint(code) {
     ["cpp", /(?:std::\w+|#\s*include\s*<iostream>|using\s+namespace\s+std)/],
     ["c", /^\s*(?:#\s*include\s*[<"]|(?:int|void)\s+main\s*\()/m],
     ["csharp", /(?:using\s+System\b|\bConsole\.WriteLine\s*\()/],
-    ["typescript", /^\s*(?:interface\s+\w+|type\s+\w+\s*=|(?:const|let)\s+\w+\s*:\s*\w+)/m],
+    ["typescript", /(?:^\s*(?:interface\s+\w+|type\s+\w+\s*=|(?:const|let)\s+\w+\s*:\s*\w+)|\(\s*\w+\s*:\s*\w+|\)\s*:\s*(?:boolean|string|number|void|Promise)\b)/m],
     ["javascript", /(?:^\s*(?:(?:export\s+)?(?:const|let|var)\s+\w+|(?:async\s+)?function\s*\w*\s*\()|\bconsole\.(?:log|warn|error)\s*\(|=>)/m],
     ["php", /<\?php\b/],
     ["ruby", /^\s*(?:puts\s+['"]|require\s*\(?['"])/m],
@@ -57,7 +58,7 @@ function highlight(code, language) {
 }
 
 export function formatCodeLayout(code, language, forceFormat = false) {
-  // Blocos já organizados mantêm sua indentação; o botão pode reorganizá-los.
+  // Blocos já organizados mantêm sua indentação, exceto quando a formatação é solicitada.
   if (!forceFormat && code.trim().includes("\n")) return code;
   const options = { indent_size: 2, wrap_line_length: 100, preserve_newlines: true, max_preserve_newlines: 2 };
   try {
@@ -74,10 +75,49 @@ export function formatCodeLayout(code, language, forceFormat = false) {
 }
 
 export function createCodeBlock(code, language, { forceFormat = false } = {}) {
+  const mixed = createMixedCodeBlock(code, language);
+  if (mixed) return mixed;
   let result = highlight(code, language?.toLowerCase());
   const formatted = formatCodeLayout(code, result.language, forceFormat);
   if (formatted !== code) result = highlight(formatted, result.language);
-  return `<pre class="code-block" data-language="${escapeHtml(result.language)}"><code class="hljs">${result.value}</code></pre>`;
+  return `<pre class="code-block" data-language="${escapeHtml(result.language)}" data-code-mode="code"><code class="hljs">${result.value}</code></pre>`;
+}
+
+function commentLine(line, language) {
+  if (!line.trim() || /^\s*(?:\/\/|#|--|\/\*|\*|<!--)/.test(line)) return line;
+  if (["python", "py", "bash", "sh", "shell", "ruby", "rb", "powershell", "yaml", "yml", "r"].includes(language)) return `# ${line}`;
+  if (["sql", "lua"].includes(language)) return `-- ${line}`;
+  if (["html", "xml"].includes(language)) return `<!-- ${line} -->`;
+  return `// ${line}`;
+}
+
+export function createMixedCodeBlock(text, fallbackLanguage) {
+  const segments = splitMixedContent(text, looksLikeCode);
+  if (!segments.some((segment) => segment.kind === "code" && segment.text.trim())) return null;
+  const hasAnnotations = segments.some((segment) => ["explanation", "label"].includes(segment.kind));
+  if (!hasAnnotations && !/^\s*(?:`{3,}|~{3,})/m.test(text)) return null;
+  let currentLanguage = hljs.getLanguage(fallbackLanguage || "") ? fallbackLanguage : undefined;
+  const languages = [];
+  for (const segment of segments) {
+    if (segment.kind !== "code") continue;
+    const result = highlight(segment.text, segment.language || languageHint(segment.text) || currentLanguage);
+    segment.language = result.language;
+    currentLanguage = result.language;
+    if (!languages.includes(result.language)) languages.push(result.language);
+  }
+  currentLanguage = languages[0] || "texto";
+  const content = segments.map((segment) => {
+    if (segment.kind === "blank") return segment.text;
+    if (segment.kind === "code") {
+      currentLanguage = segment.language;
+      const formatted = formatCodeLayout(segment.text, segment.language);
+      return `<span class="code-region" data-language="${escapeHtml(segment.language)}">${highlight(formatted, segment.language).value}</span>`;
+    }
+    const language = segment.language || currentLanguage;
+    return segment.text.split("\n").map((line) => `<span class="hljs-comment code-explanation">${escapeHtml(commentLine(line, language))}</span>`).join("\n");
+  }).join("\n");
+  const label = languages.length > 1 ? "misto" : languages[0] || "texto";
+  return `<pre class="code-block" data-language="${escapeHtml(label)}" data-code-mode="mixed"><code class="hljs">${content}</code></pre>`;
 }
 
 export function looksLikeCode(text) {
@@ -125,21 +165,7 @@ export function looksLikeCode(text) {
 // Retorna null para que o editor aplique o padrão do aplicativo ao texto comum.
 export function formatCodePaste(text, clipboardHtml = "") {
   const normalized = text.replace(/\r\n?/g, "\n");
-  const fences = [...normalized.matchAll(/^```([\w#+.-]*)[^\S\n]*\n([\s\S]*?)^```[^\S\n]*(?=\n|$)/gm)];
-  if (fences.length) {
-    let html = "";
-    let offset = 0;
-    for (const match of fences) {
-      const prose = normalized.slice(offset, match.index);
-      if (prose) html += `<p>${escapeHtml(prose).replace(/\n/g, "<br>")}</p>`;
-      html += createCodeBlock(match[2].replace(/\n$/, ""), match[1] || undefined, { forceFormat: true });
-      offset = match.index + match[0].length;
-    }
-    const tail = normalized.slice(offset);
-    if (tail) html += `<p>${escapeHtml(tail).replace(/\n/g, "<br>")}</p>`;
-    return `${html}<p><br></p>`;
-  }
-  if (/<(?:pre|code)\b/i.test(clipboardHtml) || looksLikeCode(normalized)) {
+  if (/^\s*(?:`{3,}|~{3,})/m.test(normalized) || /<(?:pre|code)\b/i.test(clipboardHtml) || looksLikeCode(normalized)) {
     return `${createCodeBlock(normalized, undefined, { forceFormat: true })}<p><br></p>`;
   }
   return null;

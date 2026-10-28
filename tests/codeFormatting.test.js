@@ -31,10 +31,10 @@ test("preserva indentação, linhas em branco, tabs e caracteres de código", ()
   assert.match(html, /hljs-keyword/);
 });
 
-test("separa explicações e múltiplos blocos entre três crases", () => {
+test("mantém explicações e várias linguagens em um só bloco de IDE", () => {
   const paste = 'Exemplo JS:\r\n```js\r\nconst x = 1;\r\n```\r\nOutro exemplo:\r\n```python\r\nprint("Olá")\r\n```\r\nFim.';
   const html = formatCodePaste(paste);
-  assert.equal((html.match(/<pre /g) || []).length, 2);
+  assert.equal((html.match(/<pre /g) || []).length, 1);
   assert.match(html, /data-language="js"/);
   assert.match(html, /data-language="python"/);
   assert.match(html, /Exemplo JS:/);
@@ -111,7 +111,7 @@ test("formata JavaScript, CSS e JSON sem alterar strings nem números grandes", 
   assert.match(formatCodeLayout('{"id":900719925474099312345,"texto":"a;b"}', 'json'), /900719925474099312345/);
 });
 
-test("mantém código indentado e linguagens sem formatador; botão permite reorganizar", () => {
+test("mantém código indentado e linguagens sem formatador; formatação explícita permite reorganizar", () => {
   const python = 'def soma(a, b):\n    return a + b';
   assert.equal(formatCodeLayout(python, 'python', true), python);
   const js = 'function x(){\n\treturn 1;\n}';

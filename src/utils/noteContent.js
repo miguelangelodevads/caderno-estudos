@@ -1,4 +1,4 @@
-import { escapeHtml, formatCodePaste } from "./codeFormatting.js";
+import { escapeHtml, formatCodePaste, createMixedCodeBlock } from "./codeFormatting.js";
 import { sanitizeHtmlContent } from "./sanitize.js";
 
 export function formatNotePaste(text, clipboardHtml = "") {
@@ -8,7 +8,7 @@ export function formatNotePaste(text, clipboardHtml = "") {
   return `<span>${escapeHtml(text.replace(/\r\n?/g, "\n")).replace(/\n/g, "<br>")}</span>`;
 }
 
-export function normalizeNoteHtml(html) {
+export function normalizeNoteHtml(html, { upgradeCodeBlocks = false } = {}) {
   const safe = sanitizeHtmlContent(html || "");
   if (typeof document === "undefined") return safe;
   const template = document.createElement("template");
@@ -18,5 +18,13 @@ export function normalizeNoteHtml(html) {
     // Mantém somente as classes que dão cor aos blocos de código.
     if (!element.closest("pre.code-block")) element.removeAttribute("class");
   });
+  if (upgradeCodeBlocks) {
+    template.content.querySelectorAll("pre.code-block:not([data-code-mode])").forEach((block) => {
+      const code = block.querySelector("code");
+      const mixed = createMixedCodeBlock(code?.textContent || block.textContent, block.dataset.language);
+      if (mixed) block.outerHTML = sanitizeHtmlContent(mixed);
+      else block.dataset.codeMode = "code";
+    });
+  }
   return template.innerHTML;
 }

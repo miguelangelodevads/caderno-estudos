@@ -50,6 +50,7 @@
 
 .code-block .hljs-comment,
 .code-block .hljs-quote { color: #6272a4; font-style: italic; }
+.code-block .code-explanation { color: #a4adcd; font-style: italic; }
 .code-block .hljs-keyword,
 .code-block .hljs-selector-tag,
 .code-block .hljs-literal,

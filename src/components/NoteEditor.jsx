@@ -37,6 +37,19 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
       selection.removeAllRanges();
       selection.addRange(range);
     }
+    if (insideCode?.isConnected) {
+      const code = insideCode.querySelector("code");
+      const source = code ? code.innerText : insideCode.innerText;
+      const template = document.createElement("template");
+      template.innerHTML = sanitizeHtmlContent(createCodeBlock(source, undefined, { forceFormat: true }));
+      const replacement = template.content.firstElementChild;
+      insideCode.replaceWith(replacement);
+      const caret = document.createRange();
+      caret.selectNodeContents(replacement.querySelector("code") || replacement);
+      caret.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(caret);
+    }
     changeRef.current(normalizeNoteHtml(editor.innerHTML));
   };
 
@@ -53,7 +66,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
   };
 
   return <div className='note-editor-wrap min-w-0'>
-    <ContentEditable {...props} innerRef={editorRef} html={normalizeNoteHtml(html)}
+    <ContentEditable {...props} innerRef={editorRef} html={normalizeNoteHtml(html, { upgradeCodeBlocks: true })}
       onChange={(event) => changeRef.current(normalizeNoteHtml(event.target.value))}
       onPaste={handlePaste} onBlur={handleBlur} spellCheck={false} />
   </div>;

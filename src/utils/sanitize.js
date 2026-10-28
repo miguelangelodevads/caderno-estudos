@@ -39,7 +39,7 @@ export function sanitizeHtmlContent(input) {
       "pre",
       "code",
     ],
-    ALLOWED_ATTR: ["href", "target", "rel", "style", "class", "data-language"],
+    ALLOWED_ATTR: ["href", "target", "rel", "style", "class", "data-language", "data-code-mode"],
     ALLOWED_URI_REGEXP:
       /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
     ADD_ATTR: ["target"],
