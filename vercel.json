@@ -1,10 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "redirects": [
+  "routes": [
     {
-      "source": "/:path*",
-      "destination": "https://caderno-estudos-6ux.pages.dev/:path*",
-      "permanent": false
+      "src": "/(.*)",
+      "status": 307,
+      "headers": {
+        "Location": "https://caderno-estudos-6ux.pages.dev/$1",
+        "Cache-Control": "no-store"
+      }
     }
   ]
 }
