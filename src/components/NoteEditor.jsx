@@ -8,7 +8,7 @@ import { createAutosave } from "../utils/autosave.js";
 
 const ContentEditable = ContentEditableModule.default || ContentEditableModule;
 
-export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, ...props }) {
+export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, draftStorage=globalThis.localStorage, ...props }) {
   const changeRef = useRef(onChange);
   const editorRef = useRef(null);
   const savedRangeRef = useRef(null);
@@ -16,7 +16,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   const [activeColor, setActiveColor] = useState(TEXT_COLORS[0].value);
   const [insideCode, setInsideCode] = useState(false);
   const [restoredDraft] = useState(() => {
-    try { return storageKey ? localStorage.getItem(storageKey) : null; } catch { return null; }
+    try { return storageKey ? draftStorage.getItem(storageKey) : null; } catch { return null; }
   });
   const [draftHtml, setDraftHtml] = useState(restoredDraft);
   const [saveStatus, setSaveStatus] = useState("idle");
@@ -29,7 +29,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
     const autosave = createAutosave(async (value) => {
       await changeRef.current(value);
       if (storageKey && latestHtmlRef.current === value) {
-        try { localStorage.removeItem(storageKey); } catch { /* A nuvem continua disponível. */ }
+        try { await draftStorage.removeItem(storageKey); } catch { /* A nuvem continua disponível. */ }
       }
     }, setSaveStatus);
     autosaveRef.current = autosave;
@@ -46,7 +46,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
       window.removeEventListener("pagehide", flush);
       autosave.close();
     };
-  }, [storageKey, restoredDraft]);
+  }, [storageKey, restoredDraft,draftStorage]);
   useEffect(() => {
     const rememberSelection = () => {
       const editor = editorRef.current;
@@ -70,15 +70,15 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   useEffect(() => {
     if (autoFocus) editorRef.current?.focus();
   }, [autoFocus]);
-  const emitChange = (editor) => {
+  const emitChange = async (editor) => {
     markEditorTextColors(editor, colorRef.current);
     const normalized = normalizeNoteHtml(editor.innerHTML);
     latestHtmlRef.current = normalized;
-    if (storageKey) {
-      try { localStorage.setItem(storageKey, normalized); } catch { /* O salvamento na nuvem continua. */ }
-    }
     setDraftHtml(normalized);
-    autosaveRef.current?.schedule(normalized);
+    if (storageKey) {
+      try { await draftStorage.setItem(storageKey, normalized); } catch { setSaveStatus('error'); }
+    }
+    if(latestHtmlRef.current===normalized)autosaveRef.current?.schedule(normalized);
   };
   const applyColor = (value) => {
     const color = normalizeTextColor(value);

@@ -1,4 +1,4 @@
-// Experimental E2EE foundation. Intentionally not imported by the application yet.
+// E2EE primitives. The application integration is restricted to local emulator tests.
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const ITERATIONS = 600_000;
@@ -73,6 +73,18 @@ export async function recoverVault(record, recoveryKey, identity) {
   try {
     const raw = await open(await importAES(recovery),record.recoveryWrap,context(record,"recovery-wrap"));
     try { return await importAES(raw); } finally { raw.fill(0); }
+  } finally { recovery.fill(0); }
+}
+export async function changeVaultPassword(record, recoveryKey, newPassphrase, identity) {
+  validateRecord(record,identity);
+  const recovery = decode(recoveryKey,32);
+  try {
+    const raw = await open(await importAES(recovery),record.recoveryWrap,context(record,"recovery-wrap"));
+    try {
+      const salt=random(16);
+      const key=await passwordKey(newPassphrase,salt);
+      return {...record,salt:encode(salt),passwordWrap:await seal(key,raw,context(record,"password-wrap"))};
+    } finally { raw.fill(0); }
   } finally { recovery.fill(0); }
 }
 export async function encryptNotebook(key, notebook, identity, documentId) {

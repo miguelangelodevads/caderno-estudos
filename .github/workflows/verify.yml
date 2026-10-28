@@ -19,4 +19,4 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - run: npx --yes firebase-tools@15 emulators:exec --only firestore --project demo-caderno-billing --config firebase.billing.json "node billing/test-rules.mjs"
+      - run: npx --yes firebase-tools@15 emulators:exec --only firestore --project demo-caderno-billing --config firebase.billing.json "node billing/test-rules.mjs && node billing/test-encryption.mjs"

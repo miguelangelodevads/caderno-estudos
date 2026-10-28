@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createAutosave } from "../utils/autosave.js";
 
-export default function InlineNoteDraft({ initialValue, onSave, onDone, storageKey, noteId }) {
+export default function InlineNoteDraft({ initialValue, onSave, onDone, storageKey, noteId,draftStorage=globalThis.localStorage }) {
   const [value, setValue] = useState(initialValue);
   const [status, setStatus] = useState("idle");
   const saveRef = useRef(onSave);
@@ -12,12 +12,12 @@ export default function InlineNoteDraft({ initialValue, onSave, onDone, storageK
     const autosave = createAutosave(async (next) => {
       await saveRef.current(next);
       if (latestRef.current === next) {
-        try { localStorage.removeItem(storageKey); } catch { /* Armazenamento local opcional. */ }
+        try { await draftStorage.removeItem(storageKey); } catch { /* Armazenamento local opcional. */ }
       }
     }, setStatus);
     autosaveRef.current = autosave;
     try {
-      if (JSON.parse(localStorage.getItem(storageKey))?.id === noteId) autosave.schedule(initialValue);
+      if (JSON.parse(draftStorage.getItem(storageKey))?.id === noteId) autosave.schedule(initialValue);
     } catch { /* Rascunhos locais são opcionais. */ }
     const flush = () => { autosave.flush(); };
     window.addEventListener("online", flush);
@@ -27,13 +27,13 @@ export default function InlineNoteDraft({ initialValue, onSave, onDone, storageK
       window.removeEventListener("pagehide", flush);
       autosave.close();
     };
-  }, [storageKey, noteId, initialValue]);
-  const change = (field, text) => {
+  }, [storageKey, noteId, initialValue,draftStorage]);
+  const change = async (field, text) => {
     const next = { ...latestRef.current, [field]: text };
     latestRef.current = next;
-    try { localStorage.setItem(storageKey, JSON.stringify({ ...next, id: noteId })); } catch { /* O salvamento na nuvem continua disponível. */ }
     setValue(next);
-    autosaveRef.current?.schedule(next);
+    try { await draftStorage.setItem(storageKey, JSON.stringify({ ...next, id: noteId })); } catch { setStatus('error'); }
+    if(latestRef.current===next)autosaveRef.current?.schedule(next);
   };
   const finish = async () => {
     if (await autosaveRef.current.flush()) onDone();

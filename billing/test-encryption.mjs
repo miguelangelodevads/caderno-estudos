@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {initializeTestEnvironment,assertFails,assertSucceeds} from '@firebase/rules-unit-testing';
+import {doc,setDoc,getDoc,deleteDoc,updateDoc} from 'firebase/firestore';
+import {createVault} from '../src/utils/notebookCrypto.js';
+import {createNotebookGateway} from '../src/utils/encryptedStorage.js';
+if(!/^127\.0\.0\.1:|^localhost:/.test(process.env.FIRESTORE_EMULATOR_HOST||''))throw new Error('Somente emulador local.');
+const env=await initializeTestEnvironment({projectId:'demo-caderno-encryption-tests',firestore:{rules:await readFile(new URL('firestore.rules',import.meta.url),'utf8')}});
+let checks=0;const pass=async p=>{await assertSucceeds(p);checks++;};const fail=async p=>{await assertFails(p);checks++;};
+try{
+ await env.clearFirestore();
+ const base='artifacts/caderno-estudos';const db=env.authenticatedContext('owner').firestore();const stranger=env.authenticatedContext('stranger').firestore();
+ await env.withSecurityRulesDisabled(async c=>{await setDoc(doc(c.firestore(),`${base}/access/owner`),{active:true});await setDoc(doc(c.firestore(),`${base}/users/owner/notebooks/n1`),{ownerUid:'owner',title:'Segredo antigo',topics:[]});});
+ const vault=await createVault('Uma frase de teste para recuperação',{uid:'owner',appId:'caderno-estudos'});
+ const vaultRef=doc(db,`${base}/users/owner/security/vault`),noteRef=doc(db,`${base}/users/owner/notebooks/n1`);
+ await pass(setDoc(vaultRef,{phase:'migrating',cryptoRecord:vault.record}));
+ await fail(getDoc(doc(stranger,vaultRef.path)));await fail(deleteDoc(vaultRef));
+ await fail(setDoc(noteRef,{ownerUid:'owner',title:'Texto aberto'}));
+ let session={key:vault.key,identity:{uid:'owner',appId:'caderno-estudos',keyId:vault.record.keyId},phase:'migrating'};
+ const gateway=createNotebookGateway(()=>session,true);
+ await pass(gateway.runTransaction(db,async tx=>{const snap=await tx.get(noteRef);tx.update(noteRef,{title:snap.data().title+' migrado'});}));
+ const raw=(await getDoc(noteRef)).data();assert.equal(raw.title,undefined);assert.equal(JSON.stringify(raw).includes('Segredo'),false);checks+=2;
+ await pass(updateDoc(vaultRef,{phase:'active'}));session.phase='active';
+ assert.equal((await gateway.decode(noteRef,raw)).title,'Segredo antigo migrado');checks++;
+ await pass(gateway.runTransaction(db,async tx=>{await tx.get(noteRef);tx.update(noteRef,{topics:[{id:'topic',notes:[{title:'Teste',content:'<b>Texto colorido</b>'}]}]});}));
+ assert.equal((await gateway.decode(noteRef,(await getDoc(noteRef)).data())).topics[0].notes[0].content,'<b>Texto colorido</b>');checks++;
+ await pass(Promise.all([1,2].map(()=>gateway.runTransaction(db,async tx=>{const current=await tx.get(noteRef);tx.update(noteRef,{counter:(current.data().counter||0)+1});}))));
+ assert.equal((await gateway.decode(noteRef,(await getDoc(noteRef)).data())).counter,2);checks++;
+ await fail(setDoc(noteRef,{ownerUid:'owner',title:'Downgrade'}));
+ await fail(updateDoc(vaultRef,{phase:'migrating'}));await fail(updateDoc(vaultRef,{'cryptoRecord.keyId':'x'.repeat(36)}));
+ const pending=gateway.setDoc(doc(db,`${base}/users/owner/notebooks/n2`),{title:'Não salvar'});session=null;
+ await assert.rejects(pending);checks++;assert.equal((await getDoc(doc(db,`${base}/users/owner/notebooks/n2`))).exists(),false);checks++;
+ await assert.rejects(gateway.decode(noteRef,raw));checks++;
+ console.log(`Criptografia e regras: ${checks} verificações passaram.`);
+}finally{await env.cleanup();}

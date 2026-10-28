@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createVault,unlockVault,recoverVault,encryptNotebook,decryptNotebook} from '../src/utils/notebookCrypto.js';
+import {createVault,unlockVault,recoverVault,changeVaultPassword,encryptNotebook,decryptNotebook} from '../src/utils/notebookCrypto.js';
 
 const identity={appId:'caderno-estudos',uid:'fake-user'};
 const phrase='Uma frase longa só para teste!';
@@ -47,4 +47,13 @@ test('large payloads and malformed envelopes fail without falling back to plaint
  await assert.rejects(encryptNotebook(vault.key,{text},binding,'n1'));
  await assert.rejects(decryptNotebook(vault.key,{version:1,keyId:binding.keyId,iv:'bad',ciphertext:'bad'},binding,'n1'));
  await assert.rejects(createVault('curta',identity));
+});
+test('recovery changes the vault password without changing its data key',async()=>{
+ const updated=await changeVaultPassword(vault.record,vault.recoveryKey,'Minha nova frase secreta de teste',identity);
+ assert.equal(updated.keyId,vault.record.keyId);
+ assert.deepEqual(updated.recoveryWrap,vault.record.recoveryWrap);
+ await assert.rejects(unlockVault(updated,phrase,identity));
+ const key=await unlockVault(updated,'Minha nova frase secreta de teste',identity);
+ const encrypted=await encryptNotebook(vault.key,notebook,binding,'n1');
+ assert.deepEqual(await decryptNotebook(key,encrypted,binding,'n1'),notebook);
 });

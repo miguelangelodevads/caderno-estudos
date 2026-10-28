@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --test tests/*.test.js billing/worker/test/*.test.js",
-    "test:rules": "node billing/test-rules.mjs"
+    "test:rules": "node billing/test-rules.mjs",
+    "test:encryption": "node billing/test-encryption.mjs",
+    "seed:encryption": "node billing/seed-encryption-test.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.17",
