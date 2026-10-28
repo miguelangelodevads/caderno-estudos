@@ -6,6 +6,7 @@ import NoteEditor from "./components/NoteEditor.jsx";
 import InlineNoteDraft from "./components/InlineNoteDraft.jsx";
 import NotebookVault from "./components/NotebookVault.jsx";
 import VaultDevices from "./components/VaultDevices.jsx";
+import VaultSettings from "./components/VaultSettings.jsx";
 import {useNotebookVault,VAULT_ENABLED} from "./hooks/useNotebookVault.js";
 import {
   Plus,
@@ -667,7 +668,8 @@ export default function App() {
   }
 
   // --- Renderização da Estante (Home) ---
-  if(VAULT_ENABLED && (!vault.canRead||vault.panel))return <NotebookVault vault={vault} onLogout={fazerLogout} onClose={vault.cancelPreparation}/>;
+  if(VAULT_ENABLED && !vault.canRead)return <NotebookVault vault={vault} onLogout={fazerLogout} onClose={vault.cancelPreparation}/>;
+  if(VAULT_ENABLED && vault.panel)return vault.encrypted?<VaultSettings vault={vault}/>:<NotebookVault vault={vault} onLogout={fazerLogout} onClose={vault.cancelPreparation}/>;
   if(VAULT_ENABLED && vault.devicesPanel)return <VaultDevices vault={vault}/>;
   if (activeNotebookId === null) {
     return (
@@ -684,7 +686,7 @@ export default function App() {
 
             <div className='flex items-center flex-wrap gap-2 sm:gap-4'>
               {vault.encrypted&&<button className='text-sm border rounded-lg p-2' onClick={()=>vault.setDevicesPanel(true)}>Meus dispositivos</button>}
-              {VAULT_ENABLED && <button className='text-sm border rounded-lg p-2' onClick={()=>vault.encrypted?vault.lock().catch(()=>setNotebookSyncError('Aguarde o salvamento dos rascunhos antes de bloquear.')):vault.setPanel(true)}>{vault.encrypted?'Bloquear cofre':'Proteger anotações'}</button>}
+              {VAULT_ENABLED && <button className='text-sm border rounded-lg p-2' onClick={()=>vault.setPanel(true)}>{vault.encrypted?'Cofre desbloqueado':'Proteger anotações'}</button>}
               {db && !notebookSyncError ? (
                 <div className='flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-green-600 bg-green-100 px-3 py-1.5 rounded-full font-medium'>
                   <Cloud className='w-4 h-4' /> Nuvem Ativa
@@ -1050,7 +1052,7 @@ export default function App() {
                     <Cloud className='w-3 h-3 md:w-4 md:h-4 text-green-500' />{" "}
                     Nuvem Atualizada
                   </p>
-                  {vault.encrypted && <button className='text-xs underline mt-1' onClick={()=>vault.lock().catch(()=>setNotebookSyncError('Aguarde o salvamento dos rascunhos antes de bloquear.'))}>Bloquear cofre</button>}
+                  {vault.encrypted && <button className='text-xs underline mt-1' onClick={()=>vault.setPanel(true)}>Cofre desbloqueado</button>}
                   {notebookSyncError && <p role='alert' className='text-xs text-red-700 mt-1'>{notebookSyncError}</p>}
                 </div>
                 {!isAddingNote && (

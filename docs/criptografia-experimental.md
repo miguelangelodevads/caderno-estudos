@@ -31,6 +31,9 @@ Chamadores persistem somente `record`, nunca o resultado inteiro de `createVault
 
 - Configuração opcional do cofre, confirmação da recuperação, bloqueio na estante
   e na folha, desbloqueio por senha ou recuperação e troca da senha do cofre.
+- O botão "Cofre desbloqueado" abre configurações e permite voltar sem bloquear.
+  A ação de bloquear é separada e exige "Sim, bloquear"; cancelar preserva a sessão
+  e a confiança. A navegação e o cancelamento foram validados no navegador real.
 - Registro por UID em `users/{uid}/security/vault`, com regras de propriedade,
   esquema estrito, chave imutável e bloqueio de downgrade da fase ativa.
 - Camada central para cifrar os cadernos inteiros e decifrar as transações atuais.
