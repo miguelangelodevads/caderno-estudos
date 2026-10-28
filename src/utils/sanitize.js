@@ -22,6 +22,7 @@ export function sanitizeHtmlContent(input) {
   const clean = sanitizer.sanitize(input, {
     ALLOWED_TAGS: [
       "p",
+      "div",
       "br",
       "strong",
       "b",
@@ -35,8 +36,10 @@ export function sanitizeHtmlContent(input) {
       "span",
       "mark",
       "a",
+      "pre",
+      "code",
     ],
-    ALLOWED_ATTR: ["href", "target", "rel", "style"],
+    ALLOWED_ATTR: ["href", "target", "rel", "style", "class", "data-language"],
     ALLOWED_URI_REGEXP:
       /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
     ADD_ATTR: ["target"],

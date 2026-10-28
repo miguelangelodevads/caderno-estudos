@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+@theme {
+  --font-mono: "Inconsolata", "Courier New", monospace;
+}
+
+@layer components {
+  .inline-note-editor:empty::before {
+    content: attr(data-placeholder);
+    color: #64748b;
+    pointer-events: none;
+  }
+  .note-text {
+    font-family: var(--font-mono);
+    font-optical-sizing: auto;
+    font-size: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);
+    font-weight: 500;
+    font-style: normal;
+    line-height: 2rem;
+  }
+}
+
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;

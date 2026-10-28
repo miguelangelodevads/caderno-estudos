@@ -1,0 +1,86 @@
+.note-text .code-block {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  margin: 1rem 0;
+  padding: 3.25rem 1.25rem 1.25rem;
+  overflow-x: auto;
+  border: 1px solid #44475a;
+  border-radius: 0.85rem;
+  background: #282a36;
+  color: #f8f8f2;
+  box-shadow: 0 8px 24px #15162026;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.65;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  tab-size: 2;
+  text-shadow: none;
+  color-scheme: dark;
+}
+
+.note-text .code-block::before {
+  content: attr(data-language);
+  position: absolute;
+  inset: 0 0 auto;
+  min-width: 100%;
+  height: 2.15rem;
+  padding: 0.35rem 1rem 0.35rem 4.75rem;
+  border-bottom: 1px solid #44475a;
+  background:
+    radial-gradient(circle at 18px 17px, #ff5555 4px, transparent 4.5px),
+    radial-gradient(circle at 34px 17px, #f1fa8c 4px, transparent 4.5px),
+    radial-gradient(circle at 50px 17px, #50fa7b 4px, transparent 4.5px),
+    #21222c;
+  color: #bd93f9;
+  font-size: 0.8rem;
+  line-height: 1.35rem;
+  pointer-events: none;
+}
+
+.note-text .code-block code {
+  font: inherit;
+  white-space: inherit;
+  color: inherit;
+  background: transparent;
+}
+
+.code-block .hljs-comment,
+.code-block .hljs-quote { color: #6272a4; font-style: italic; }
+.code-block .hljs-keyword,
+.code-block .hljs-selector-tag,
+.code-block .hljs-literal,
+.code-block .hljs-tag { color: #ff79c6; }
+.code-block .hljs-string,
+.code-block .hljs-regexp,
+.code-block .hljs-doctag { color: #f1fa8c; }
+.code-block .hljs-title,
+.code-block .hljs-section,
+.code-block .hljs-selector-id,
+.code-block .hljs-selector-class { color: #50fa7b; }
+.code-block .hljs-number,
+.code-block .hljs-symbol,
+.code-block .hljs-bullet { color: #bd93f9; }
+.code-block .hljs-built_in,
+.code-block .hljs-type,
+.code-block .hljs-name { color: #8be9fd; }
+.code-block .hljs-attr,
+.code-block .hljs-attribute,
+.code-block .hljs-params,
+.code-block .hljs-template-variable { color: #ffb86c; }
+.code-block .hljs-meta { color: #f8f8f2; }
+.code-block .hljs-addition { color: #50fa7b; }
+.code-block .hljs-deletion { color: #ff5555; }
+.code-block .hljs-emphasis { font-style: italic; }
+.code-block .hljs-strong { font-weight: 700; }
+
+@media (max-width: 640px) {
+  .note-text .code-block {
+    padding-right: 0.85rem;
+    padding-left: 0.85rem;
+    font-size: 0.9375rem;
+  }
+}

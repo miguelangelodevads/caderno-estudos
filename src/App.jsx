@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import ContentEditableModule from "react-contenteditable";
-const ContentEditable = ContentEditableModule.default || ContentEditableModule;
+import NoteEditor from "./components/NoteEditor.jsx";
+import InlineNoteDraft from "./components/InlineNoteDraft.jsx";
 import {
   Plus,
   Trash2,
@@ -45,6 +45,7 @@ import { auth as localAuth, db as localDb } from "./config/firebase.js";
 import AreaLogin from "./components/AreaLogin";
 import PagamentoAcesso from "./components/PagamentoAcesso";
 import { sanitizeHtmlContent } from "./utils/sanitize.js";
+import { subscribeOnResume } from "./utils/resumeSubscription.js";
 
 const firebaseConfig =
   typeof __firebase_config !== "undefined" && __firebase_config
@@ -88,6 +89,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!!auth);
   const [notebooks, setNotebooks] = useState([]);
+  const [notebookSyncError, setNotebookSyncError] = useState("");
 
   const [activeNotebookId, setActiveNotebookId] = useState(null);
   const [activeTopicId, setActiveTopicId] = useState(null);
@@ -95,17 +97,19 @@ export default function App() {
   const [isAddingNotebook, setIsAddingNotebook] = useState(false);
   const [newNotebookTitle, setNewNotebookTitle] = useState("");
   const [newNotebookColor, setNewNotebookColor] = useState(COLORS[0]);
+  const [isCreatingNotebook, setIsCreatingNotebook] = useState(false);
+  const [notebookCreationError, setNotebookCreationError] = useState("");
 
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState("");
   const [newTopicColor, setNewTopicColor] = useState(TOPIC_COLORS[0]);
 
   const [isAddingNote, setIsAddingNote] = useState(false);
+  const [focusNoteId, setFocusNoteId] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteForm, setNoteForm] = useState({ title: "", content: "" });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const contentEditableRef = useRef(null);
   const skipNextAccessCountRef = useRef(false);
 
   const [mostrarLogin, setMostrarLogin] = useState(true);
@@ -191,7 +195,7 @@ export default function App() {
 
   useEffect(() => {
     if (!auth || !db) return;
-    let dbUnsubscribe = () => {};
+    let disposed = false;
 
     const initAuth = async () => {
       try {
@@ -208,7 +212,6 @@ export default function App() {
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      dbUnsubscribe();
       setUser(currentUser);
 
       if (currentUser && !currentUser.isAnonymous) {
@@ -268,6 +271,7 @@ export default function App() {
               };
             },
           );
+          if (disposed || auth.currentUser?.uid !== currentUser.uid) return;
           const profile = profileSnapshot;
           setAcessoLiberado(profile.lifetimeAccess || profile.accessCount <= 1);
           setMostrarLogin(false);
@@ -276,34 +280,6 @@ export default function App() {
           setLoading(false);
           return;
         }
-        const notebooksRef = collection(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          currentUser.uid,
-          "notebooks",
-        );
-        dbUnsubscribe = onSnapshot(
-          notebooksRef,
-          (snapshot) => {
-            const loadedNotebooks = snapshot.docs
-              .map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              }))
-              .filter(
-                (notebook) =>
-                  !notebook.ownerUid || notebook.ownerUid === currentUser.uid,
-              );
-            setNotebooks(loadedNotebooks);
-            setLoading(false);
-          },
-          (error) => {
-            console.error("Erro ao buscar cadernos:", error);
-            setLoading(false);
-          },
-        );
       } else {
         setNotebooks([]);
         setLoading(false);
@@ -311,18 +287,46 @@ export default function App() {
       }
     });
     return () => {
+      disposed = true;
       unsubscribe();
-      dbUnsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!user || user.isAnonymous || !db || mostrarLogin) return;
+
+    const notebooksRef = collection(
+      db, "artifacts", appId, "users", user.uid, "notebooks",
+    );
+    return subscribeOnResume((isCurrent) => onSnapshot(
+        notebooksRef,
+        (snapshot) => {
+          if (!isCurrent()) return;
+          setNotebooks(snapshot.docs
+            .map((entry) => ({ ...entry.data(), id: entry.id }))
+            .filter((notebook) => !notebook.ownerUid || notebook.ownerUid === user.uid));
+          setNotebookSyncError("");
+          setLoading(false);
+        },
+        (error) => {
+          if (!isCurrent()) return;
+          console.error("Erro ao buscar cadernos:", error);
+          setNotebookSyncError("Não foi possível atualizar seus cadernos. Tentaremos novamente quando você voltar à janela ou recuperar a conexão.");
+          setLoading(false);
+        },
+    ));
+  }, [user, mostrarLogin]);
 
   const activeNotebook = notebooks.find((n) => n.id === activeNotebookId);
   const activeTopic = activeNotebook?.topics.find(
     (t) => t.id === activeTopicId,
   );
+  const noteDraftKey = `note-draft:${user?.uid}:${activeNotebookId}:${activeTopicId}`;
 
   const handleAddNotebook = async () => {
-    if (!newNotebookTitle.trim() || !user || !db) return;
+    if (!newNotebookTitle.trim() || !user || !db || isCreatingNotebook) return;
+    setIsCreatingNotebook(true);
+    setNotebookCreationError("");
     const newNotebookRef = doc(
       collection(db, "artifacts", appId, "users", user.uid, "notebooks"),
     );
@@ -335,10 +339,23 @@ export default function App() {
     };
     try {
       await setDoc(newNotebookRef, newNotebook);
+      if (auth.currentUser?.uid !== user.uid) return;
+      setNotebooks((current) => current.some((notebook) => notebook.id === newNotebook.id)
+        ? current
+        : [newNotebook, ...current]);
       setIsAddingNotebook(false);
       setNewNotebookTitle("");
     } catch (error) {
       console.error("Erro ao criar caderno:", error);
+      setNotebookCreationError(
+        error.code === "permission-denied"
+          ? "Não foi possível salvar: sua conta não tem permissão. Verifique as regras de acesso do banco de dados."
+          : error.code === "resource-exhausted"
+            ? "O serviço de armazenamento atingiu sua cota. Tente novamente mais tarde ou solicite a revisão da cota do serviço."
+            : "Não foi possível salvar o caderno. Verifique sua conexão e tente novamente.",
+      );
+    } finally {
+      setIsCreatingNotebook(false);
     }
   };
 
@@ -440,60 +457,48 @@ export default function App() {
     }
   };
 
-  const handleSaveNote = async () => {
-    if (!noteForm.title.trim() || !activeNotebook || !user || !db) return;
-    const sanitizedContent = sanitizeHtmlContent(noteForm.content);
-    const updatedTopics = activeNotebook.topics.map((topic) => {
-      if (topic.id === activeTopicId) {
-        if (editingNoteId) {
-          return {
-            ...topic,
-            notes: topic.notes.map((note) =>
-              note.id === editingNoteId
-                ? { ...note, title: noteForm.title, content: sanitizedContent }
-                : note,
-            ),
-          };
-        } else {
-          return {
-            ...topic,
-            notes: [
-              ...topic.notes,
-              {
-                id: doc(collection(db, "_")).id,
-                title: noteForm.title,
-                content: sanitizedContent,
-              },
-            ],
-          };
-        }
-      }
-      return topic;
-    });
-    const updatedNotebook = {
-      ...activeNotebook,
-      ownerUid: activeNotebook.ownerUid || user.uid,
-      topics: updatedTopics,
-    };
-    try {
-      await setDoc(
-        doc(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          user.uid,
-          "notebooks",
-          activeNotebookId,
-        ),
-        updatedNotebook,
-      );
-      setIsAddingNote(false);
-      setEditingNoteId(null);
-      setNoteForm({ title: "", content: "" });
-    } catch (error) {
-      console.error("Erro ao salvar anotação:", error);
+  const handleSaveNote = async (value) => {
+    if (!user || !db || !activeNotebookId || !activeTopicId || !editingNoteId) {
+      throw new Error("A anotação não está disponível para salvar.");
     }
+    const content = sanitizeHtmlContent(value.content);
+    const isEmpty = !value.title.trim() && !content.replace(/<[^>]*>|&nbsp;/g, "").trim();
+    const notebookRef = doc(db, "artifacts", appId, "users", user.uid, "notebooks", activeNotebookId);
+    // Atualiza a versão mais recente para não sobrescrever outras aulas.
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(notebookRef);
+      if (!snapshot.exists()) throw new Error("Caderno não encontrado.");
+      const notebook = snapshot.data();
+      if (!notebook.topics?.some((topic) => topic.id === activeTopicId)) {
+        throw new Error("Assunto não encontrado.");
+      }
+      if (isEmpty && !notebook.topics.find((topic) => topic.id === activeTopicId)
+        .notes?.some((note) => note.id === editingNoteId)) return;
+      const note = { id: editingNoteId, title: value.title.trim() || "Sem título", content };
+      const topics = notebook.topics.map((topic) => {
+        if (topic.id !== activeTopicId) return topic;
+        const notes = topic.notes || [];
+        return { ...topic, notes: notes.some((entry) => entry.id === editingNoteId)
+          ? notes.map((entry) => entry.id === editingNoteId ? { ...entry, title: note.title } : entry)
+          : [...notes, note] };
+      });
+      transaction.update(notebookRef, { topics, ownerUid: notebook.ownerUid || user.uid });
+    });
+  };
+
+  const startNote = () => {
+    try {
+      const draft = JSON.parse(localStorage.getItem(noteDraftKey));
+      if (draft && typeof draft.id === "string" && typeof draft.title === "string" && typeof draft.content === "string") {
+        setEditingNoteId(draft.id);
+        setNoteForm({ title: draft.title, content: sanitizeHtmlContent(draft.content) });
+        setIsAddingNote(true);
+        return;
+      }
+    } catch { /* Um rascunho inválido não impede criar uma aula. */ }
+    setEditingNoteId(doc(collection(db, "_")).id);
+    setNoteForm({ title: "", content: "" });
+    setIsAddingNote(true);
   };
 
   const handleDeleteNote = async (noteId) => {
@@ -566,37 +571,20 @@ export default function App() {
   };
 
   const autoSaveNoteContent = async (noteId, newHtml) => {
-    if (!activeNotebook || !user || !db) return;
+    if (!activeNotebookId || !activeTopicId || !user || !db) return;
     const safeHtml = sanitizeHtmlContent(newHtml);
-    const updatedTopics = activeNotebook.topics.map((topic) => {
-      if (topic.id === activeTopicId) {
-        return {
-          ...topic,
-          notes: topic.notes.map((n) =>
-            n.id === noteId ? { ...n, content: safeHtml } : n,
-          ),
-        };
-      }
-      return topic;
-    });
-    const updatedNotebook = {
-      ...activeNotebook,
-      ownerUid: activeNotebook.ownerUid || user.uid,
-      topics: updatedTopics,
-    };
+    const notebookRef = doc(db, "artifacts", appId, "users", user.uid, "notebooks", activeNotebookId);
     try {
-      await setDoc(
-        doc(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          user.uid,
-          "notebooks",
-          activeNotebookId,
-        ),
-        updatedNotebook,
-      );
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(notebookRef);
+        if (!snapshot.exists()) return;
+        const notebook = snapshot.data();
+        const topics = notebook.topics.map((topic) => topic.id === activeTopicId
+          ? { ...topic, notes: (topic.notes || []).map((note) => note.id === noteId
+            ? { ...note, content: safeHtml } : note) }
+          : topic);
+        transaction.update(notebookRef, { topics, ownerUid: notebook.ownerUid || user.uid });
+      });
     } catch (error) {
       console.error("Erro ao auto-salvar anotação:", error);
     }
@@ -668,13 +656,13 @@ export default function App() {
             </div>
 
             <div className='flex items-center flex-wrap gap-2 sm:gap-4'>
-              {db ? (
+              {db && !notebookSyncError ? (
                 <div className='flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-green-600 bg-green-100 px-3 py-1.5 rounded-full font-medium'>
                   <Cloud className='w-4 h-4' /> Nuvem Ativa
                 </div>
               ) : (
                 <div className='flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-red-600 bg-red-100 px-3 py-1.5 rounded-full font-medium'>
-                  <Cloud className='w-4 h-4' /> Offline
+                  <Cloud className='w-4 h-4' /> {db ? "Falha na sincronização" : "Offline"}
                 </div>
               )}
 
@@ -687,13 +675,22 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => setIsAddingNotebook(true)}
+                onClick={() => {
+                  setNotebookCreationError("");
+                  setIsAddingNotebook(true);
+                }}
                 className='bg-stone-800 hover:bg-stone-700 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg shadow-sm flex items-center gap-2 text-sm sm:text-base font-medium transition-all w-full md:w-auto justify-center'
               >
                 <Plus className='w-5 h-5' /> Novo Caderno
               </button>
             </div>
           </header>
+
+          {notebookSyncError && (
+            <p role='alert' className='text-sm text-red-600 mb-6'>
+              {notebookSyncError}
+            </p>
+          )}
 
           {isAddingNotebook && (
             <div className='bg-white p-6 rounded-xl shadow-md mb-8 max-w-md ring-1 ring-black/5 animate-in fade-in slide-in-from-top-4 w-full'>
@@ -722,8 +719,14 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              {notebookCreationError && (
+                <p role='alert' className='text-sm text-red-600 mb-4'>
+                  {notebookCreationError}
+                </p>
+              )}
               <div className='flex justify-end gap-3'>
                 <button
+                  disabled={isCreatingNotebook}
                   onClick={() => setIsAddingNotebook(false)}
                   className='px-4 py-2 text-stone-500 hover:bg-stone-100 rounded-lg font-medium'
                 >
@@ -731,9 +734,10 @@ export default function App() {
                 </button>
                 <button
                   onClick={handleAddNotebook}
-                  className='px-4 py-2 bg-stone-800 text-white rounded-lg font-medium shadow-sm hover:bg-stone-700'
+                  disabled={isCreatingNotebook || !newNotebookTitle.trim()}
+                  className='px-4 py-2 bg-stone-800 text-white rounded-lg font-medium shadow-sm hover:bg-stone-700 disabled:opacity-50'
                 >
-                  Criar Caderno
+                  {isCreatingNotebook ? "Salvando..." : "Criar Caderno"}
                 </button>
               </div>
             </div>
@@ -856,7 +860,7 @@ export default function App() {
             </p>
             <h1
               className='text-lg font-bold text-slate-800 flex items-start gap-2 leading-tight w-full'
-              style={{ fontFamily: "'Courier New', Courier, monospace" }}
+              style={{ fontFamily: "var(--font-mono)" }}
             >
               <BookOpen className='w-5 h-5 text-amber-700 shrink-0 mt-0.5' />
               <span className='whitespace-normal break-word'>
@@ -1001,10 +1005,10 @@ export default function App() {
                 </div>
                 {!isAddingNote && (
                   <button
-                    onClick={() => setIsAddingNote(true)}
+                    onClick={startNote}
                     className='bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-2 text-sm font-medium transition-all w-full sm:w-auto shrink-0'
                   >
-                    <Plus className='w-4 h-4' /> Adicionar Aula
+                    <Plus className='w-4 h-4' /> Adicionar título
                   </button>
                 )}
               </header>
@@ -1023,61 +1027,21 @@ export default function App() {
                 >
                   <div className='absolute left-4 sm:left-8 md:left-16 top-0 bottom-0 w-px md:w-0.5 bg-red-400/40 z-0'></div>
                   <div className='max-w-5xl pl-1 md:pl-2 relative z-10'>
-                    {isAddingNote ? (
-                      <div className='bg-white/90 backdrop-blur-sm p-4 md:p-6 rounded-xl shadow-lg ring-1 ring-black/5 mb-8 md:mb-10'>
-                        <h3 className='text-base md:text-lg font-medium text-slate-800 mb-4 font-serif'>
-                          {editingNoteId ? "Editar Anotação" : "Nova Anotação"}
-                        </h3>
-                        <div className='space-y-4'>
-                          <input
-                            type='text'
-                            placeholder='Título da Aula'
-                            value={noteForm.title}
-                            onChange={(e) =>
-                              setNoteForm({
-                                ...noteForm,
-                                title: e.target.value,
-                              })
-                            }
-                            className='w-full text-base md:text-lg bg-transparent border-b-2 border-slate-200 focus:border-blue-400 outline-none pb-2 font-medium'
-                          />
-                          <ContentEditable
-                            innerRef={contentEditableRef}
-                            html={noteForm.content}
-                            onChange={(e) =>
-                              setNoteForm({
-                                ...noteForm,
-                                content: sanitizeHtmlContent(e.target.value),
-                              })
-                            }
-                            className='w-full min-h-48 bg-white/50 border border-slate-200 focus:border-blue-400 rounded-lg p-3 outline-none text-slate-700 overflow-y-auto shadow-inner'
-                            style={{
-                              lineHeight: "2rem",
-                              fontFamily: "'Caveat', cursive",
-                              fontSize: "1.3rem",
-                            }}
-                          />
-                          <div className='flex justify-end gap-2 md:gap-3 pt-2'>
-                            <button
-                              onClick={() => {
-                                setIsAddingNote(false);
-                                setEditingNoteId(null);
-                                setNoteForm({ title: "", content: "" });
-                              }}
-                              className='px-3 md:px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-md text-xs md:text-sm font-medium transition-colors'
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              onClick={handleSaveNote}
-                              className='px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs md:text-sm font-medium shadow-sm transition-colors'
-                            >
-                              Salvar
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
+                    {isAddingNote && (
+                      <InlineNoteDraft
+                        key={editingNoteId}
+                        initialValue={noteForm}
+                        storageKey={noteDraftKey}
+                        noteId={editingNoteId}
+                        onSave={handleSaveNote}
+                        onDone={() => {
+                          setFocusNoteId(editingNoteId);
+                          setIsAddingNote(false);
+                          setEditingNoteId(null);
+                          setNoteForm({ title: "", content: "" });
+                        }}
+                      />
+                    )}
                       <div>
                         {activeTopic.notes?.length === 0 ? (
                           <div className='text-center py-12 md:py-20 opacity-50 flex flex-col items-center'>
@@ -1158,24 +1122,20 @@ export default function App() {
                                 </div>
                               </div>
 
-                              <ContentEditable
+                              <NoteEditor
+                                autoFocus={focusNoteId === note.id}
+                                aria-label={`Conteúdo de ${note.title || "anotação"}`}
+                                data-placeholder='Escreva direto na folha ou cole seu código…'
                                 html={sanitizeHtmlContent(note.content || "")}
-                                onChange={(e) => {
-                                  autoSaveNoteContent(note.id, e.target.value);
+                                onChange={(content) => {
+                                  autoSaveNoteContent(note.id, content);
                                 }}
-                                className='text-slate-700 whitespace-pre-wrap font-medium outline-none'
-                                style={{
-                                  lineHeight: "2rem",
-                                  textShadow: "0 1px 0 rgba(255,255,255,0.5)",
-                                  fontFamily: "'Caveat', cursive",
-                                  fontSize: "1.3rem",
-                                }}
+                                className='note-text inline-note-editor min-h-24 text-slate-700 whitespace-pre-wrap outline-none'
                               />
                             </article>
                           ))
                         )}
                       </div>
-                    )}
                   </div>
                 </div>
               </div>
