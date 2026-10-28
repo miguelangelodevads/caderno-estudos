@@ -34,6 +34,9 @@ for (const filename of ['firestore.setup.rules', 'firestore.rules']) {
     await pass(getDoc(doc(owner, `${base}/access/old`)));
     await fail(getDoc(doc(anonymous, notebook)));
     await fail(getDoc(doc(stranger, notebook)));
+    await fail(getDocs(collection(stranger, `${base}/users/old/notebooks`)));
+    await fail(getDocs(collection(anonymous, `${base}/users/old/notebooks`)));
+    await fail(updateDoc(doc(stranger, notebook), { title: 'Ataque' }));
     await fail(setDoc(doc(stranger, notebook), { title: 'Ataque' }));
     await fail(updateDoc(doc(owner, notebook), { ownerUid: 'stranger' }));
     await fail(setDoc(doc(pending, `${base}/access/new`), { active: true }));

@@ -1,7 +1,23 @@
 import createDOMPurify from "dompurify";
+import { normalizeTextColor } from "./textColor.js";
 
 const domWindow = typeof window !== "undefined" ? window : globalThis;
 const sanitizer = createDOMPurify(domWindow);
+
+// Stored notes can predate the paste normalizer. Apply the same restrictions
+// every time content is rendered, including legacy notes and restored drafts.
+if (typeof sanitizer.addHook === "function") sanitizer.addHook("afterSanitizeAttributes", (node) => {
+  if (!node.getAttribute) return;
+  const color = normalizeTextColor(node.style?.color);
+  node.removeAttribute("style");
+  if (color) node.setAttribute("style", `color: ${color};`);
+  if (node.tagName === "A") {
+    const href = node.getAttribute("href");
+    if (href && !/^(https?:|mailto:|\/|#|\.|\?)/i.test(href)) node.removeAttribute("href");
+    if (node.getAttribute("target") === "_blank") node.setAttribute("rel", "noopener noreferrer");
+    else node.removeAttribute("target");
+  }
+});
 
 const stripDangerousPatterns = (value) =>
   String(value)
