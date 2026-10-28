@@ -197,10 +197,10 @@ para o Pages por redirecionamento temporário, preservando caminho e consulta. O
 Vercel e o Firebase não são excluídos. Sessões locais do PWA antigo podem exigir entrar
 novamente no novo endereço; não apagar rascunhos nem o armazenamento para forçar a troca.
 
-Pendência de transição: o GitHub confirmou sucesso da publicação Vercel do commit
-`0ca5ce5`, mas a URL antiga ainda respondeu 200 sem Location na verificação HTTP.
-A inspeção do domínio no painel Vercel solicitou Passkey do proprietário. Até validar
-o encaminhamento, usar o endereço Pages como produção; não declarar o redirect concluído.
+Transição concluída em 28/10/2026: após publicar a rota explícita do commit `fdb1dcd`,
+a URL antiga respondeu HTTP 307 com Location para o Pages, tanto na raiz quanto em
+`/teste`, preservando o caminho. O destino Pages respondeu HTTP 200. A resposta de
+redirecionamento usa Cache-Control no-store; não remove dados ou sessões locais.
 
 ## Rollback
 
