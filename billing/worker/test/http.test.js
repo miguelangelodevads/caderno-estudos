@@ -1,9 +1,18 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createHandler,collectorConfiguration} from '../src/index.js';
+import worker, {createHandler,collectorConfiguration} from '../src/index.js';
 import {Firestore} from '../src/firestore.js';
 import {HttpError,toBase64} from '../src/auth.js';
 import {MemoryStore,env,order,orderId,payment,signature} from './helpers.js';
+
+test('publicação pelo painel tem defaults públicos com cobrança desligada e não aprova sem secrets', async () => {
+    const plan = await worker.fetch(new Request('https://payments.example.com/plan'), {});
+    assert.equal(plan.status, 200);
+    const data = await plan.json();
+    assert.equal(data.enabled, false); assert.equal(data.amountCents, 299);
+    const access = await worker.fetch(new Request('https://payments.example.com/access'), {});
+    assert.equal(access.status, 503);
+});
 
 test('conta antiga consulta acesso mesmo com cobrança desligada e Mercado Pago sem configuração', async () => {
     const store = new MemoryStore([['access/user-a', { active: true, legacy: { permanent: true } }]]);

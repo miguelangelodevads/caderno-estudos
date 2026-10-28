@@ -45,11 +45,14 @@ restauração automática nem rotina de apagar/substituir cadernos.
 
 A identidade `caderno-payments@caderno-estudos-7adbd.iam.gserviceaccount.com` foi
 criada e recebeu apenas `roles/datastore.user` no projeto do Caderno, com autorização
-expressa do proprietário. A chave privada será gerada somente quando o Worker estiver
-pronto para recebê-la como Secret; ainda não foi criada nessa etapa.
+expressa do proprietário. A chave foi validada e armazenada como Secret criptografado
+no Worker; a cópia temporária local foi removida. Os dois Secrets Firebase estão
+configurados. As credenciais Mercado Pago ainda estão pendentes.
 Rotina administrativa repetível: `node billing/scripts/create-identity.cjs`.
 
-Criar um Worker chamado `caderno-estudos-payments`, separado de `setlist-pro-payments`.
+Worker publicado: `https://caderno-estudos-payments.migueltiojhoe.workers.dev`,
+separado de `setlist-pro-payments`, com cobrança desligada e ambiente sandbox.
+`/health` e `/plan` foram verificados; `/access` exige autenticação.
 Root do projeto Cloudflare: `billing/worker`. Build de frontend não é necessário.
 Deploy pelo Wrangler 4: `npx wrangler@4 deploy`. O toml tem cobrança desabilitada.
 Atualizar `WORKER_URL` para a URL HTTPS realmente atribuída antes da validação integrada.
@@ -127,6 +130,11 @@ antigos podem oferecer uso grátis pela interface, mas as regras finais devem ne
 operações de cadernos a qualquer conta nova ainda não aprovada.
 
 ## Cloudflare Pages
+
+Candidato publicado em `https://caderno-estudos-6ux.pages.dev/`, com cobrança desligada.
+O domínio foi autorizado no Firebase preservando os domínios anteriores. A tela de
+login carregou; o login de uma conta real neste domínio ainda precisa ser validado.
+A integração GitHub conserva Setlist Pro e inclui somente o Caderno adicionalmente.
 
 Usar o repositório `miguelangelodevads/caderno-estudos`, branch `main`, root `/`,
 build `npm ci && npm run build`, output `dist`. Publicar apenas `dist`, nunca a raiz.

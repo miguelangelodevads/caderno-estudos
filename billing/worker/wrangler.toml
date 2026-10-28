@@ -10,7 +10,7 @@ head_sampling_rate = 1
 [vars]
 APP_ID = "caderno-estudos"
 APP_URL = "https://caderno-estudos-alpha.vercel.app/"
-WORKER_URL = "https://configure-worker.invalid"
+WORKER_URL = "https://caderno-estudos-payments.migueltiojhoe.workers.dev"
 FIREBASE_PROJECT_ID = "caderno-estudos-7adbd"
 MP_ENVIRONMENT = "sandbox"
 CHECKOUT_ENABLED = "false"

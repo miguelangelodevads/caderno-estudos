@@ -11,8 +11,12 @@ preparação aplicados. Cobrança automática e migração de hospedagem ainda d
 - Regras públicas substituídas por proteção de dados por usuário, sem ainda exigir compra.
 - Conta antiga aberta no site publicado continuou acessando os próprios cadernos.
 - Implementação e validações documentadas em `billing/README.md`.
-- Pendente: autorizar o repositório do Caderno na integração Cloudflare/GitHub,
-  configurar identidade de servidor e secrets Mercado Pago, testar integração e ativar.
+- Repositório autorizado preservando Setlist Pro; site candidato publicado em
+  `https://caderno-estudos-6ux.pages.dev/`, com cobrança desligada e domínio autorizado.
+- Worker publicado em `https://caderno-estudos-payments.migueltiojhoe.workers.dev`,
+  com identidade exclusiva de Firestore e Secrets Firebase configurados e validados.
+- Pendente: configurar Mercado Pago, validar login e pagamento integrado, executar
+  inventário final e ativar a cobrança coordenadamente.
 
 ## Decisões confirmadas pelo proprietário
 
@@ -28,7 +32,8 @@ incrementa o contador e libera quem tem `lifetimeAccess` ou está no primeiro ac
 Perfis sem `accessCount` recebem liberação por uma regra antiga no navegador.
 `PagamentoAcesso.jsx` abre um link estático do Mercado Pago e solicita comprovante.
 Não há backend de cobrança nem regras Firestore versionadas neste repositório.
-As regras efetivamente publicadas e a população de usuários ainda precisam ser inventariadas.
+Esse diagnóstico descreve a versão anterior; o inventário e as regras de preparação
+aplicados estão registrados acima.
 
 A versão atual do Setlist Pro no GitHub tem Pages para o site e um Worker de cobrança
 separado. Foram consultados `CLOUDFLARE-PAGES.md` e `billing/README.md` na branch main.
@@ -206,5 +211,5 @@ real configurada na conta antes da ativação. Nenhum plano pago será habilitad
 - Mercado Pago Webhooks: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications
 - Referência privada do proprietário: https://github.com/miguelangelodevads/setlist-pro/blob/main/billing/README.md
 
-O estado acima confirma somente as etapas ali listadas. Não houve ativação da cobrança,
-publicação de Worker/Pages ou validação de pagamento real nesta preparação.
+O estado acima confirma somente as etapas ali listadas. Worker e Pages foram publicados
+com cobrança desligada. Ainda não houve validação de pagamento real nem ativação da cobrança.

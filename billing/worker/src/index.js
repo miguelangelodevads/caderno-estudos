@@ -1,6 +1,7 @@
 import {HttpError, verifyFirebaseToken, verifyMercadoPagoSignature} from './auth.js';
 import {Firestore} from './firestore.js';
 import {createCheckout, applyPayment, reconcileAccess, planFromEnv, isAccessActive} from './payments.js';
+import {publicDefaults} from './config.js';
 
 async function boundedJSON(request) {
     if (Number(request.headers.get('content-length') || 0) > 16384) throw new HttpError(413,'Notificação muito grande.');
@@ -122,4 +123,5 @@ export function createHandler(dependencies = {}) {
         }
     };
 }
-export default {fetch:createHandler()};
+const handler = createHandler();
+export default {fetch:(request, env) => handler(request, {...publicDefaults, ...env})};
