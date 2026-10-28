@@ -32,7 +32,7 @@ test('signed device sessions reject replay, forged proofs and registration from 
  const b=await f.client();assert.equal((await f.call(b,'session',{publicKey:b.publicKey},result.data.customToken)).status,401);
  assert.equal((await f.request('/challenge',{deviceId:a.id,purpose:'session'},'login','https://evil.example')).status,403);
 });
-test('trust grant is private to an active signed device, expires and is deleted on revoke',async()=>{
+test('trust grant is private, remains valid without expiry and is deleted on revoke or forget',async()=>{
  const f=fixture(),a=await f.client(),b=await f.client();
  const ta=(await f.call(a,'session',{publicKey:a.publicKey,label:'A'})).data.customToken;
  const tb=(await f.call(b,'session',{publicKey:b.publicKey,label:'B'})).data.customToken;
@@ -46,6 +46,11 @@ test('trust grant is private to an active signed device, expires and is deleted 
  assert.equal((await f.call(b,'grant',{},tb)).status,410);
  assert.equal(f.data.has(`artifacts/caderno-estudos/users/owner/devices/${b.id}/grants/key`),false);
  assert.equal(f.data.get(`artifacts/caderno-estudos/users/owner/devices/${b.id}`).active,false);
- assert.equal((await f.call(a,'trust',payload,ta)).status,200);f.advance(31*86400000);
+ assert.equal((await f.call(a,'trust',payload,ta)).status,200);f.advance(3650*86400000);
+ const permanent=await f.call(a,'grant',{},ta);assert.equal(permanent.status,200);assert.equal(permanent.data.expiresAt,null);
+ assert.equal((await f.call(a,'forget',{},ta)).status,200);
+ assert.equal((await f.call(a,'grant',{},ta)).status,404);
+ // Old grants with a finite expiry keep their original deadline until reauthorized.
+ f.data.set(`artifacts/caderno-estudos/users/owner/devices/${a.id}/grants/key`,{keyId:'test-key',envelope:payload.envelope,expiresAt:1});
  assert.equal((await f.call(a,'grant',{},ta)).status,404);
 });

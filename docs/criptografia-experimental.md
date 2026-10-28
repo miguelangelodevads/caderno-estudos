@@ -99,7 +99,9 @@ testes de regras preservam os dados da demonstração em `demo-caderno-billing`.
 - Um aparelho novo exige login recente por senha. O servidor emite um token Firebase
   com `deviceId`; as regras consultam o registro ativo em cada nova leitura/gravação
   do cofre. Remover a autorização bloqueia também tokens antigos, sem aguardar expiração.
-- A opção de confiar é voluntária e vale por 30 dias. Uma chave AES não exportável,
+- A opção de confiar é voluntária e não tem expiração automática. Revogar o aparelho,
+  bloquear o cofre ou sair da conta remove essa confiança. Autorizações anteriores
+  com prazo mantêm a data original até serem autorizadas novamente. Uma chave AES não exportável,
   guardada somente no navegador, protege uma cópia da chave do cofre. O servidor guarda
   apenas a cópia cifrada e exige prova do aparelho para devolvê-la. Nenhuma senha do
   cofre ou chave aberta é enviada ao serviço de dispositivos.

@@ -51,12 +51,12 @@ export function createDeviceHandler({auth,db,now=Date.now}) {
    if(purpose==='trust'){
     const vault=(await db.doc(`artifacts/caderno-estudos/users/${user.uid}/security/vault`).get()).data();const e=payload.envelope;
     if(vault?.cryptoRecord?.keyId!==payload.keyId||typeof e?.iv!=='string'||e.iv.length!==16||typeof e?.ciphertext!=='string'||e.ciphertext.length!==64)fail('Autorização do cofre inválida.',400);
-    const expiresAt=now()+30*24*60*60*1000;
+    const expiresAt=null; // Trust lasts until explicit revocation, lock or logout.
     await db.runTransaction(async tx=>{const current=await tx.get(ref);if(!current.data()?.active)fail('Acesso revogado.',410);tx.set(grantRef,{keyId:payload.keyId,envelope:e,expiresAt});tx.update(ref,{trusted:true,trustedUntil:expiresAt,...(typeof payload.label==='string'&&payload.label.trim()?{label:payload.label.trim().slice(0,80)}:{})});});
     return reply(200,{ok:true});
    }
    if(purpose==='grant'){
-    const grant=(await grantRef.get()).data();if(!grant||grant.expiresAt<=now())fail('Desbloqueie com a senha do cofre.',404);
+    const grant=(await grantRef.get()).data();if(!grant||(grant.expiresAt!==null&&(!Number.isFinite(grant.expiresAt)||grant.expiresAt<=now())))fail('Desbloqueie com a senha do cofre.',404);
     return reply(200,grant);
    }
    if(purpose==='forget'){await db.runTransaction(async tx=>{tx.delete(grantRef);tx.update(ref,{trusted:false,trustedUntil:0});});return reply(200,{ok:true});}
