@@ -43,6 +43,12 @@ restauração automática nem rotina de apagar/substituir cadernos.
 
 ## Configuração do Worker — somente do Caderno
 
+A identidade `caderno-payments@caderno-estudos-7adbd.iam.gserviceaccount.com` foi
+criada e recebeu apenas `roles/datastore.user` no projeto do Caderno, com autorização
+expressa do proprietário. A chave privada será gerada somente quando o Worker estiver
+pronto para recebê-la como Secret; ainda não foi criada nessa etapa.
+Rotina administrativa repetível: `node billing/scripts/create-identity.cjs`.
+
 Criar um Worker chamado `caderno-estudos-payments`, separado de `setlist-pro-payments`.
 Root do projeto Cloudflare: `billing/worker`. Build de frontend não é necessário.
 Deploy pelo Wrangler 4: `npx wrangler@4 deploy`. O toml tem cobrança desabilitada.
