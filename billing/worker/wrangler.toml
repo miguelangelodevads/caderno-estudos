@@ -1,0 +1,20 @@
+name = "caderno-estudos-payments"
+main = "src/index.js"
+compatibility_date = "2026-10-28"
+workers_dev = true
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[vars]
+APP_ID = "caderno-estudos"
+APP_URL = "https://caderno-estudos-alpha.vercel.app/"
+WORKER_URL = "https://configure-worker.invalid"
+FIREBASE_PROJECT_ID = "caderno-estudos-7adbd"
+MP_ENVIRONMENT = "sandbox"
+CHECKOUT_ENABLED = "false"
+PLAN_ID = "caderno-vitalicio-299-v1"
+PLAN_TITLE = "Caderno de Estudos — acesso vitalício"
+PLAN_AMOUNT_CENTS = "299"
+MP_COLLECTOR_ID = "auto"

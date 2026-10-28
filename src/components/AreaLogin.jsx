@@ -1,3 +1,4 @@
+import { BILLING_ENABLED } from "../utils/billingClient.js";
 import { useState } from "react";
 import { Mail, Lock, BookOpen } from "lucide-react";
 
@@ -27,7 +28,7 @@ export default function AreaLogin({ aoFazerLogin, aoFazerCadastro }) {
           </h1>
           <p className='text-stone-500 mt-2 text-center'>
             {isRegistering
-              ? "Crie uma conta para salvar suas anotações na nuvem."
+              ? (BILLING_ENABLED ? "Crie sua conta e libere o acesso vitalício por R$ 2,99. Pagamento único, sem mensalidade." : "Crie uma conta para salvar suas anotações na nuvem.")
               : "Acesse suas anotações de qualquer lugar."}
           </p>
         </div>

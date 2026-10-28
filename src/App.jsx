@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { BILLING_ENABLED } from "./utils/billingClient.js";
+import { useBillingAccess } from "./hooks/useBillingAccess.js";
 import NoteActions from "./components/NoteActions.jsx";
 import NoteEditor from "./components/NoteEditor.jsx";
 import InlineNoteDraft from "./components/InlineNoteDraft.jsx";
@@ -113,7 +115,9 @@ export default function App() {
   const skipNextAccessCountRef = useRef(false);
 
   const [mostrarLogin, setMostrarLogin] = useState(true);
-  const [acessoLiberado, setAcessoLiberado] = useState(false);
+  const [legacyAccess, setAcessoLiberado] = useState(false);
+  const billingAccess = useBillingAccess(user, db, appId);
+  const acessoLiberado = BILLING_ENABLED ? billingAccess.status === "active" : legacyAccess;
   const { isMobile: isMobileLayout, shellRef, drawerRef, menuButtonRef } = useMobileNotebookLayout({
     active: activeNotebookId !== null && !loading && !mostrarLogin && acessoLiberado,
     menuOpen: isMobileMenuOpen,
@@ -169,19 +173,9 @@ export default function App() {
   const fazerCadastroComEmail = async (email, senha) => {
     try {
       skipNextAccessCountRef.current = true;
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        senha,
-      );
-      const newUser = userCredential.user;
-      // Cria um documento para o novo usuário no Firestore
-      await setDoc(doc(db, "artifacts", appId, "users", newUser.uid), {
-        email: newUser.email,
-        createdAt: serverTimestamp(),
-        accessCount: 1,
-        lifetimeAccess: false,
-      });
+      await createUserWithEmailAndPassword(auth, email, senha);
+      // Um só responsável cria o perfil no modo antigo: onAuthStateChanged.
+      // No modo automático, o acesso é criado somente pelo servidor.
     } catch (error) {
       skipNextAccessCountRef.current = false;
       console.error("Erro no cadastro:", error);
@@ -221,6 +215,12 @@ export default function App() {
       setUser(currentUser);
 
       if (currentUser && !currentUser.isAnonymous) {
+        if (BILLING_ENABLED) {
+          setAcessoLiberado(false);
+          setMostrarLogin(false);
+          setLoading(false);
+          return;
+        }
         setLoading(true);
         const profileRef = doc(
           db,
@@ -299,7 +299,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user || user.isAnonymous || !db || mostrarLogin) return;
+    if (!user || user.isAnonymous || !db || mostrarLogin || (BILLING_ENABLED && !acessoLiberado)) return;
 
     const notebooksRef = collection(
       db, "artifacts", appId, "users", user.uid, "notebooks",
@@ -321,7 +321,7 @@ export default function App() {
           setLoading(false);
         },
     ));
-  }, [user, mostrarLogin]);
+  }, [user, mostrarLogin, acessoLiberado]);
 
   const activeNotebook = notebooks.find((n) => n.id === activeNotebookId);
   const activeTopic = activeNotebook?.topics.find(
@@ -624,7 +624,7 @@ export default function App() {
     setIsAddingNote(false);
   };
 
-  if (loading) {
+  if (loading || (BILLING_ENABLED && user && !mostrarLogin && billingAccess.status === "checking")) {
     return (
       <div className='min-h-screen bg-stone-100 flex flex-col items-center justify-center text-stone-500'>
         <Loader2 className='w-10 h-10 animate-spin mb-4' />
@@ -646,7 +646,8 @@ export default function App() {
     return (
       <PagamentoAcesso
         user={user}
-        onAccessGranted={() => setAcessoLiberado(true)}
+        accessError={billingAccess.error}
+        onRetryAccess={billingAccess.retry}
         onLogout={fazerLogout}
       />
     );

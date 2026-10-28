@@ -5,7 +5,11 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import { defineConfig, globalIgnores } from "eslint/config";
 
 export default defineConfig([
-  globalIgnores(["dist", "dev-dist", ".venv"]),
+  globalIgnores(["dist", "dev-dist", ".venv", "billing/private", "**/.wrangler"]),
+  {
+    files: ["billing/**/*.{js,cjs,mjs}"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
   {
     files: ["**/*.{js,jsx}"],
     extends: [
