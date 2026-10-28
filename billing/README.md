@@ -73,6 +73,11 @@ A simulação assinada do Mercado Pago para o mesmo pagamento real retornou 200 
 com consulta do recurso no provedor e tratamento idempotente do recibo já aprovado.
 Não foi necessário outro pagamento e o agente não executou transação financeira.
 
+Conferência posterior: as 17 contas do corte continuam com isenção permanente e os
+conteúdos/IDs dos 17 cadernos são iguais ao backup final. O 18.º cadastro é a conta
+técnica posterior ao corte e permanece sem acesso. Os três testes reais de regras
+(leitura, gravação de caderno e autoaprovação) foram recusados corretamente.
+
 Durante os testes, o painel recebeu `APP_URL` do Pages, `LEGACY_APP_URL` da Vercel,
 `MP_COLLECTOR_ID=115256254` (ID exibido pela aplicação) e `CHECKOUT_ENABLED=true`
 inicialmente com `MP_ENVIRONMENT=sandbox`; o painel agora usa `production` e checkout
@@ -191,6 +196,11 @@ Após a validação do Pages, `vercel.json` encaminha novos acessos da hospedage
 para o Pages por redirecionamento temporário, preservando caminho e consulta. O projeto
 Vercel e o Firebase não são excluídos. Sessões locais do PWA antigo podem exigir entrar
 novamente no novo endereço; não apagar rascunhos nem o armazenamento para forçar a troca.
+
+Pendência de transição: o GitHub confirmou sucesso da publicação Vercel do commit
+`0ca5ce5`, mas a URL antiga ainda respondeu 200 sem Location na verificação HTTP.
+A inspeção do domínio no painel Vercel solicitou Passkey do proprietário. Até validar
+o encaminhamento, usar o endereço Pages como produção; não declarar o redirect concluído.
 
 ## Rollback
 
