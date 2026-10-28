@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createVault,unlockVault,recoverVault,changeVaultPassword,encryptNotebook,decryptNotebook} from '../src/utils/notebookCrypto.js';
+import {createVault,unlockVault,recoverVault,changeVaultPassword,encryptNotebook,decryptNotebook,wrapVaultForDevice,unlockVaultFromDevice} from '../src/utils/notebookCrypto.js';
 
 const identity={appId:'caderno-estudos',uid:'fake-user'};
 const phrase='Uma frase longa só para teste!';
@@ -56,4 +56,14 @@ test('recovery changes the vault password without changing its data key',async()
  const key=await unlockVault(updated,'Minha nova frase secreta de teste',identity);
  const encrypted=await encryptNotebook(vault.key,notebook,binding,'n1');
  assert.deepEqual(await decryptNotebook(key,encrypted,binding,'n1'),notebook);
+});
+test('a trusted-device wrapper cannot be unlocked with another device key or identifier',async()=>{
+ const deviceKey=await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+ const another=await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+ const envelope=await wrapVaultForDevice(vault.record,phrase,false,identity,'device-a',deviceKey);
+ const grant={keyId:vault.record.keyId,envelope};
+ const key=await unlockVaultFromDevice(vault.record,grant,deviceKey,identity,'device-a');
+ const content=await encryptNotebook(vault.key,notebook,binding,'n1');assert.deepEqual(await decryptNotebook(key,content,binding,'n1'),notebook);
+ await assert.rejects(unlockVaultFromDevice(vault.record,grant,another,identity,'device-a'));
+ await assert.rejects(unlockVaultFromDevice(vault.record,grant,deviceKey,identity,'device-b'));
 });

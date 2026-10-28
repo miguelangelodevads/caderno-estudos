@@ -4,6 +4,12 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  server: {
+    fs: {
+      // The local preview must never expose migration backups or test credentials.
+      deny: [".env", ".env.*", "**/*.{crt,pem}", "**/.git/**", "**/billing/private/**"],
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

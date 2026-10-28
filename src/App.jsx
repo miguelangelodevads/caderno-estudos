@@ -5,6 +5,7 @@ import NoteActions from "./components/NoteActions.jsx";
 import NoteEditor from "./components/NoteEditor.jsx";
 import InlineNoteDraft from "./components/InlineNoteDraft.jsx";
 import NotebookVault from "./components/NotebookVault.jsx";
+import VaultDevices from "./components/VaultDevices.jsx";
 import {useNotebookVault,VAULT_ENABLED} from "./hooks/useNotebookVault.js";
 import {
   Plus,
@@ -118,7 +119,7 @@ export default function App() {
   const [legacyAccess, setAcessoLiberado] = useState(false);
   const billingAccess = useBillingAccess(user, db, appId);
   const acessoLiberado = BILLING_ENABLED ? billingAccess.status === "active" : legacyAccess;
-  const vault=useNotebookVault({db,user,appId,active:acessoLiberado && !mostrarLogin});
+  const vault=useNotebookVault({db,auth,user,appId,active:acessoLiberado && !mostrarLogin});
   const setDoc=vault.gateway.setDoc;
   const runTransaction=vault.gateway.runTransaction;
   const { isMobile: isMobileLayout, shellRef, drawerRef, menuButtonRef } = useMobileNotebookLayout({
@@ -644,10 +645,13 @@ export default function App() {
 
   if (mostrarLogin) {
     return (
+      <>
+      {VAULT_ENABLED&&<p className='bg-amber-100 text-amber-900 text-center text-sm p-3'>Ambiente local de teste — use somente a conta fictícia de demonstração.</p>}
       <AreaLogin
         aoFazerLogin={fazerLoginComEmail}
         aoFazerCadastro={fazerCadastroComEmail}
       />
+      </>
     );
   }
 
@@ -664,6 +668,7 @@ export default function App() {
 
   // --- Renderização da Estante (Home) ---
   if(VAULT_ENABLED && (!vault.canRead||vault.panel))return <NotebookVault vault={vault} onLogout={fazerLogout} onClose={vault.cancelPreparation}/>;
+  if(VAULT_ENABLED && vault.devicesPanel)return <VaultDevices vault={vault}/>;
   if (activeNotebookId === null) {
     return (
       <div className='notebook-shelf min-h-screen bg-[#efebe1] p-4 sm:p-8 font-sans text-slate-800'>
@@ -678,6 +683,7 @@ export default function App() {
             </div>
 
             <div className='flex items-center flex-wrap gap-2 sm:gap-4'>
+              {vault.encrypted&&<button className='text-sm border rounded-lg p-2' onClick={()=>vault.setDevicesPanel(true)}>Meus dispositivos</button>}
               {VAULT_ENABLED && <button className='text-sm border rounded-lg p-2' onClick={()=>vault.encrypted?vault.lock().catch(()=>setNotebookSyncError('Aguarde o salvamento dos rascunhos antes de bloquear.')):vault.setPanel(true)}>{vault.encrypted?'Bloquear cofre':'Proteger anotações'}</button>}
               {db && !notebookSyncError ? (
                 <div className='flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-green-600 bg-green-100 px-3 py-1.5 rounded-full font-medium'>

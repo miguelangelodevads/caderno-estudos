@@ -4,7 +4,7 @@ import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebas
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, Timestamp, serverTimestamp } from 'firebase/firestore';
 
 if (!/^127\.0\.0\.1:|^localhost:/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) throw new Error('Execute somente no emulador local.');
-const projectId = 'demo-caderno-billing';
+const projectId = 'demo-caderno-rules-tests';
 let checks = 0;
 const pass = async (promise) => { await assertSucceeds(promise); checks++; };
 const fail = async (promise) => { await assertFails(promise); checks++; };

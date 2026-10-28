@@ -47,10 +47,10 @@ Chamadores persistem somente `record`, nunca o resultado inteiro de `createVault
 
 ## Validação realizada
 
-- 98 testes passaram, incluindo criptografia, recuperação, troca de senha, rascunhos
+- 101 testes passaram, incluindo criptografia, recuperação, troca de senha, rascunhos
   corrompidos, falta de espaço, autosave, cores, código e pagamentos simulados.
 - Lint e build passaram; permanece somente o aviso conhecido de tamanho do bundle.
-- 45 verificações das regras existentes e 19 verificações de criptografia/regras
+- 45 verificações das regras existentes e 31 verificações de criptografia/regras
   passaram no emulador, incluindo transações concorrentes sem perda de atualização.
 - Navegador real: criação do cofre, interrupção/retomada da migração, senha errada,
   senha correta, recuperação, troca de senha, nova anotação, colagem de código e
@@ -88,8 +88,63 @@ npm run dev -- --host 127.0.0.1 --port 5174 --strictPort
 A conta fictícia fica em `billing/private/encryption-test-account.json`; o seed
 preserva um cofre que já exista. O teste de criptografia usa um projeto emulado
 distinto (`demo-caderno-encryption-tests`) para não apagar a demonstração.
-`test:rules` limpa o projeto `demo-caderno-billing`: execute antes de preparar a
-demonstração. Em CI, ambos os testes de regras são executados antes de qualquer UI.
+`test:rules` usa o projeto fictício isolado `demo-caderno-rules-tests`; ambos os
+testes de regras preservam os dados da demonstração em `demo-caderno-billing`.
+
+## Aparelhos confiáveis e revogação — integração local
+
+- Após o login, cada navegador possui uma identidade ECDSA P-256, com chave privada
+  não exportável persistida em IndexedDB. O servidor exige prova assinada com nonce
+  de uso único e prazo de 60 segundos, vinculada à conta, aparelho e operação.
+- Um aparelho novo exige login recente por senha. O servidor emite um token Firebase
+  com `deviceId`; as regras consultam o registro ativo em cada nova leitura/gravação
+  do cofre. Remover a autorização bloqueia também tokens antigos, sem aguardar expiração.
+- A opção de confiar é voluntária e vale por 30 dias. Uma chave AES não exportável,
+  guardada somente no navegador, protege uma cópia da chave do cofre. O servidor guarda
+  apenas a cópia cifrada e exige prova do aparelho para devolvê-la. Nenhuma senha do
+  cofre ou chave aberta é enviada ao serviço de dispositivos.
+- Ao reabrir, é necessária conexão para verificar a autorização. Bloquear o cofre ou
+  sair da conta remove a cópia local de confiança. O cadastro do aparelho permanece
+  visível como autorização de sessão, com último acesso; não é uma indicação de presença
+  online em tempo real.
+- Meus dispositivos mostra nome, último acesso, validade da confiança, aparelho atual
+  e opção de desconectar. A sessão online revogada apaga a autorização local e volta
+  ao login; os outros aparelhos continuam funcionando. É possível reconectar com login
+  recente, mas isso não restaura automaticamente a confiança no cofre.
+- Metadados de dispositivos não podem ser alterados pelo cliente do Firestore;
+  cópias de chave de aparelhos são inacessíveis pelo SDK cliente, mesmo para o dono.
+- Teste visual com duas origens locais independentes: reabertura automática do confiável,
+  listagem de ambos, revogação do segundo e retorno dele ao login. Testes cobrem replay,
+  prova falsa, expiração, troca indevida de operação, chave de outro aparelho e revogação
+  nas regras mantendo o mesmo contexto de autenticação.
+
+Antes de abrir a interface, inicie também em outro terminal:
+
+```powershell
+$env:FIRESTORE_EMULATOR_HOST='127.0.0.1:8089'
+$env:FIREBASE_AUTH_EMULATOR_HOST='127.0.0.1:9099'
+npm run dev:device-api
+```
+
+O serviço escuta somente `127.0.0.1:5175` e recusa iniciar sem esses dois emuladores.
+Aceita somente as origens locais `http://127.0.0.1:5174` e `http://localhost:5174`.
+Firebase Admin é dependência de desenvolvimento, sem credencial de produção.
+
+**Limites:** revogar não apaga cópias offline, plaintext previamente exibido ou chaves
+que um aparelho comprometido tenha capturado. Quem conhece as credenciais de login
+pode se autenticar novamente; se também conhece a senha do cofre, poderá abri-lo.
+IndexedDB e CryptoKey não equivalem a proteção por hardware ou biometria: confiar só
+é adequado em aparelhos pessoais protegidos. Não há rotação retroativa da chave de
+todos os cadernos neste incremento.
+
+Para produção, ainda será necessário um serviço autenticado HTTPS com identidade de
+servidor apropriada, limites de abuso persistentes, revisão da emissão de tokens e
+política de expiração/retenção. O servidor local e tokens do emulador nunca devem ser
+expostos publicamente. A restrição ao ambiente de teste continua obrigatória.
+
+O preview Vite bloqueia a entrega HTTP de `billing/private`, arquivos de ambiente,
+certificados e metadados Git. Backups e credenciais fictícias são lidos somente
+pelo sistema de arquivos local, nunca pelo navegador via URL.
 
 ## Requisitos antes de produção
 

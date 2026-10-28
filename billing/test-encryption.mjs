@@ -31,5 +31,19 @@ try{
  const pending=gateway.setDoc(doc(db,`${base}/users/owner/notebooks/n2`),{title:'Não salvar'});session=null;
  await assert.rejects(pending);checks++;assert.equal((await getDoc(doc(db,`${base}/users/owner/notebooks/n2`))).exists(),false);checks++;
  await assert.rejects(gateway.decode(noteRef,raw));checks++;
+ const da='d_11111111-1111-4111-8111-111111111111',dB='d_22222222-2222-4222-8222-222222222222';
+ const deviceA=env.authenticatedContext('owner',{deviceId:da}).firestore(),deviceB=env.authenticatedContext('owner',{deviceId:dB}).firestore();
+ await env.withSecurityRulesDisabled(async c=>{const admin=c.firestore();await setDoc(doc(admin,`${base}/users/owner/devices/${da}`),{active:true});await setDoc(doc(admin,`${base}/users/owner/devices/${dB}`),{active:true});await updateDoc(doc(admin,vaultRef.path),{deviceControl:true});});
+ await fail(getDoc(noteRef));
+ await pass(getDoc(doc(deviceA,noteRef.path)));await pass(getDoc(doc(deviceB,noteRef.path)));
+ await fail(updateDoc(doc(deviceA,vaultRef.path),{deviceControl:false}));
+ await fail(setDoc(doc(deviceA,`${base}/users/owner/devices/${da}`),{active:true}));
+ await fail(getDoc(doc(deviceA,`${base}/users/owner/devices/${da}/grants/key`)));
+ await env.withSecurityRulesDisabled(async c=>{await updateDoc(doc(c.firestore(),`${base}/users/owner/devices/${dB}`),{active:false});});
+ await fail(getDoc(doc(deviceB,noteRef.path)));await fail(setDoc(doc(deviceB,noteRef.path),raw));await fail(getDoc(doc(deviceB,vaultRef.path)));
+ await pass(getDoc(doc(deviceA,noteRef.path)));
+ await env.withSecurityRulesDisabled(async c=>{await deleteDoc(doc(c.firestore(),vaultRef.path));});
+ await fail(setDoc(vaultRef,{phase:'migrating',cryptoRecord:vault.record,deviceControl:true}));
+ await pass(setDoc(doc(deviceA,vaultRef.path),{phase:'migrating',cryptoRecord:vault.record,deviceControl:true}));
  console.log(`Criptografia e regras: ${checks} verificações passaram.`);
 }finally{await env.cleanup();}

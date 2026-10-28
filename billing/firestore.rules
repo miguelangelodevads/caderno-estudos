@@ -8,6 +8,19 @@ service cloud.firestore {
         && (get(path).data.get('expiresAt', null) == null || get(path).data.expiresAt > request.time);
     }
     function vaultPath(appId,uid) { return /databases/$(database)/documents/artifacts/$(appId)/users/$(uid)/security/vault; }
+    function activeDevice(appId,uid) {
+      let id=request.auth.token.get('deviceId','');
+      let path=/databases/$(database)/documents/artifacts/$(appId)/users/$(uid)/devices/$(id);
+      return id is string && id.size()>0 && exists(path) && get(path).data.active==true;
+    }
+    function deviceAllowed(appId,uid) {
+      return !exists(vaultPath(appId,uid)) || !get(vaultPath(appId,uid)).data.get('deviceControl',false) || activeDevice(appId,uid);
+    }
+    match /artifacts/{appId}/users/{uid}/devices/{deviceId} {
+      allow read: if owner(uid) && approved(appId,uid);
+      allow write: if false;
+      match /grants/{grant} { allow read,write: if false; }
+    }
     function cipherValid(data,keyId) {
       return data.keys().hasOnly(['ownerUid','encrypted'])
         && data.encrypted.keys().hasOnly(['version','keyId','iv','ciphertext'])
@@ -25,17 +38,20 @@ service cloud.firestore {
     }
     function vaultValid(data,appId,uid) {
       let c=data.cryptoRecord;
-      return data.keys().hasOnly(['phase','cryptoRecord']) && data.phase in ['migrating','active']
+      return data.keys().hasOnly(['phase','cryptoRecord','deviceControl']) && data.get('deviceControl',false) is bool && data.phase in ['migrating','active']
         && c.keys().hasOnly(['version','algorithm','kdf','iterations','appId','uid','keyId','salt','passwordWrap','recoveryWrap'])
         && c.version==1 && c.algorithm=='AES-256-GCM' && c.kdf=='PBKDF2-SHA-256' && c.iterations==600000
         && c.appId==appId && c.uid==uid && c.keyId is string && c.keyId.size()==36
         && c.salt is string && c.salt.size()==22 && wrappedKeyValid(c.passwordWrap) && wrappedKeyValid(c.recoveryWrap);
     }
     match /artifacts/{appId}/users/{uid}/security/vault {
-      allow get: if owner(uid) && approved(appId,uid);
+      allow get: if owner(uid) && approved(appId,uid) && deviceAllowed(appId,uid);
       allow list,delete: if false;
-      allow create: if owner(uid) && approved(appId,uid) && request.resource.data.phase=='migrating' && vaultValid(request.resource.data,appId,uid);
-      allow update: if owner(uid) && approved(appId,uid) && vaultValid(request.resource.data,appId,uid)
+      allow create: if owner(uid) && approved(appId,uid) && request.resource.data.phase=='migrating' && vaultValid(request.resource.data,appId,uid)
+        && (!request.resource.data.get('deviceControl',false) || activeDevice(appId,uid));
+      allow update: if owner(uid) && approved(appId,uid) && deviceAllowed(appId,uid) && vaultValid(request.resource.data,appId,uid)
+        && (!resource.data.get('deviceControl',false) || request.resource.data.get('deviceControl',false))
+        && (!request.resource.data.get('deviceControl',false) || activeDevice(appId,uid))
         && (resource.data.phase=='migrating' || request.resource.data.phase=='active')
         && request.resource.data.cryptoRecord.diff(resource.data.cryptoRecord).affectedKeys().hasOnly(['salt','passwordWrap']);
     }
@@ -64,9 +80,9 @@ service cloud.firestore {
         || bootstrapRetry());
     }
     match /artifacts/{appId}/users/{uid}/notebooks/{notebookId} {
-      allow read, delete: if owner(uid) && approved(appId, uid);
+      allow read, delete: if owner(uid) && approved(appId, uid) && deviceAllowed(appId,uid);
       allow create, update: if owner(uid) && approved(appId, uid)
-        && request.resource.data.get('ownerUid', uid) == uid && protectedWrite(appId,uid);
+        && request.resource.data.get('ownerUid', uid) == uid && protectedWrite(appId,uid) && deviceAllowed(appId,uid);
     }
     match /{document=**} { allow read, write: if false; }
   }

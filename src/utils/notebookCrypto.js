@@ -87,6 +87,19 @@ export async function changeVaultPassword(record, recoveryKey, newPassphrase, id
     } finally { raw.fill(0); }
   } finally { recovery.fill(0); }
 }
+export async function wrapVaultForDevice(record,secret,recovery,identity,deviceId,deviceKey) {
+  validateRecord(record,identity);
+  let wrapping;
+  if(recovery){const bytes=decode(secret.trim(),32);try{wrapping=await importAES(bytes);}finally{bytes.fill(0);}}
+  else wrapping=await passwordKey(secret,decode(record.salt,16));
+  const raw=await open(wrapping,recovery?record.recoveryWrap:record.passwordWrap,context(record,recovery?'recovery-wrap':'password-wrap'));
+  try{return await seal(deviceKey,raw,context(record,'device-wrap',deviceId));}finally{raw.fill(0);}
+}
+export async function unlockVaultFromDevice(record,grant,deviceKey,identity,deviceId) {
+  validateRecord(record,identity);if(grant.keyId!==record.keyId)throw new Error('Autorização de outro cofre.');
+  const raw=await open(deviceKey,grant.envelope,context(record,'device-wrap',deviceId));
+  try{return await importAES(raw);}finally{raw.fill(0);}
+}
 export async function encryptNotebook(key, notebook, identity, documentId) {
   if (typeof documentId !== "string" || !documentId || documentId.length > 256 || documentId.includes("/")) throw new Error("Caderno inválido.");
   const bytes = encoder.encode(JSON.stringify(notebook));
