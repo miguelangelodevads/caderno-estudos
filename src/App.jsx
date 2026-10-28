@@ -1036,9 +1036,10 @@ export default function App() {
                 {!isAddingNote && (
                   <button
                     onClick={startNote}
+                    aria-label='Adicionar título'
                     className='add-title-button bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-2 text-sm font-medium transition-all w-full sm:w-auto shrink-0'
                   >
-                    <Plus className='w-4 h-4' /> Adicionar título
+                    <Plus className='w-4 h-4' /><span className='add-title-label'>Adicionar título</span>
                   </button>
                 )}
               </header>
@@ -1107,11 +1108,11 @@ export default function App() {
                                   </span>
                                   {note.title}
                                 </h3>
+                                <NoteActions mobile index={index} count={activeTopic.notes.length} title={note.title} onMove={handleMoveNote} onEdit={() => handleEditNote(note)} onDelete={() => handleDeleteNote(note.id)} />
                                 <div className="note-actions-desktop"><NoteActions index={index} count={activeTopic.notes.length} title={note.title} onMove={handleMoveNote} onEdit={() => handleEditNote(note)} onDelete={() => handleDeleteNote(note.id)} /></div>
                               </div>
 
                               <NoteEditor
-                                mobileActions={<NoteActions index={index} count={activeTopic.notes.length} title={note.title} onMove={handleMoveNote} onEdit={() => handleEditNote(note)} onDelete={() => handleDeleteNote(note.id)} />}
                                 storageKey={`${noteDraftKey}:content:${note.id}`}
                                 autoFocus={focusNoteId === note.id}
                                 aria-label={`Conteúdo de ${note.title || "anotação"}`}

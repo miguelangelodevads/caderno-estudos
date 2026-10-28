@@ -4,12 +4,11 @@ import { createCodeBlock } from "../utils/codeFormatting.js";
 import { formatNotePaste, normalizeNoteHtml } from "../utils/noteContent.js";
 import { sanitizeHtmlContent } from "../utils/sanitize.js";
 import { TEXT_COLORS, markEditorTextColors, normalizeTextColor } from "../utils/textColor.js";
-import MobileTextColors from "./MobileTextColors.jsx";
 import { createAutosave } from "../utils/autosave.js";
 
 const ContentEditable = ContentEditableModule.default || ContentEditableModule;
 
-export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, mobileActions, ...props }) {
+export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, ...props }) {
   const changeRef = useRef(onChange);
   const editorRef = useRef(null);
   const savedRangeRef = useRef(null);
@@ -157,17 +156,15 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   };
 
   return <div className='note-editor-wrap min-w-0'>
-    <MobileTextColors activeColor={activeColor} insideCode={insideCode} onApplyColor={applyColor}
-      actions={mobileActions} saveStatus={saveStatus} onRetry={() => autosaveRef.current?.flush()} />
     <div role='toolbar' aria-label='Cores do texto' className='note-color-toolbar-desktop flex items-center flex-wrap gap-2 mb-2 font-sans text-xs text-slate-500'>
       <span>Cor do texto</span>
       {TEXT_COLORS.map((color) => <button key={color.value} type='button'
         aria-label={`Cor ${color.name.toLowerCase()}`} aria-pressed={activeColor === color.value}
         title={insideCode ? "As cores do código são automáticas" : color.name}
-        disabled={insideCode} onMouseDown={(event) => event.preventDefault()}
+        disabled={insideCode} onPointerDown={(event) => event.preventDefault()}
         onClick={() => applyColor(color.value)}
         className={`w-5 h-5 rounded-full border border-white shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${activeColor === color.value ? "ring-2 ring-offset-2 ring-slate-400" : "hover:scale-110"}`}
-        style={{ backgroundColor: color.value }} />)}
+        style={{ backgroundColor: color.value }}><span style={{ backgroundColor: color.value }} /></button>)}
       <label className='flex items-center gap-1 cursor-pointer'>
         <span>Outra cor</span>
         <input type='color' aria-label='Cor personalizada' value={activeColor} disabled={insideCode}
@@ -179,5 +176,9 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
       onChange={() => emitChange(editorRef.current)}
       onPaste={handlePaste} onBlur={handleBlur} spellCheck={false}
       role='textbox' aria-multiline='true' autoCapitalize='off' autoCorrect='off' />
+    <div className={`mobile-editor-save ${saveStatus === "idle" ? "mobile-editor-save-idle" : ""}`} role='status' aria-live='polite'>
+      {{ idle: "", pending: "Salvando…", saving: "Salvando…", saved: "Salvo", error: "Falha ao salvar" }[saveStatus]}
+      {saveStatus === "error" && <button type='button' onPointerDown={(event) => event.preventDefault()} onClick={() => autosaveRef.current?.flush()}>Tentar novamente</button>}
+    </div>
   </div>;
 }
