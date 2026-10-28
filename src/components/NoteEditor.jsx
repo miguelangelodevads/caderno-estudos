@@ -65,7 +65,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
       : null;
     if (existingBlock && hasSelection && existingBlock.contains(selection.focusNode)) {
       const code = existingBlock.querySelector("code");
-      existingBlock.outerHTML = sanitizeHtmlContent(createCodeBlock(code?.innerText || existingBlock.innerText));
+      existingBlock.outerHTML = sanitizeHtmlContent(createCodeBlock(code?.innerText || existingBlock.innerText, undefined, { forceFormat: true }));
       changeRef.current(sanitizeHtmlContent(editor.innerHTML));
       return;
     }
@@ -74,7 +74,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
     if (!hasSelection) range.selectNodeContents(editor);
     selection.removeAllRanges();
     selection.addRange(range);
-    const block = sanitizeHtmlContent(`${createCodeBlock(text)}<p><br></p>`);
+    const block = sanitizeHtmlContent(`${createCodeBlock(text, undefined, { forceFormat: true })}<p><br></p>`);
     if (!hasSelection) {
       editor.innerHTML = block;
       const after = document.createRange();

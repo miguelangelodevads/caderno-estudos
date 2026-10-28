@@ -1,6 +1,7 @@
 import hljs from "highlight.js/lib/common";
 import powershell from "highlight.js/lib/languages/powershell";
 import dart from "highlight.js/lib/languages/dart";
+import beautifier from "js-beautify/js/lib/beautifier.js";
 
 hljs.registerLanguage("powershell", powershell);
 hljs.registerLanguage("dart", dart);
@@ -55,8 +56,27 @@ function highlight(code, language) {
     : { language: "texto", value: escapeHtml(code) };
 }
 
-export function createCodeBlock(code, language) {
-  const result = highlight(code, language?.toLowerCase());
+export function formatCodeLayout(code, language, forceFormat = false) {
+  // Blocos já organizados mantêm sua indentação; o botão pode reorganizá-los.
+  if (!forceFormat && code.trim().includes("\n")) return code;
+  const options = { indent_size: 2, wrap_line_length: 100, preserve_newlines: true, max_preserve_newlines: 2 };
+  try {
+    if (["html", "xml"].includes(language)) {
+      return beautifier.html(code.trim(), {
+        ...options, indent_inner_html: true, extra_liners: [],
+        unformatted: ["pre", "textarea"],
+      });
+    }
+    if (["javascript", "js", "json"].includes(language)) return beautifier.js(code.trim(), options);
+    if (["css", "scss", "less"].includes(language)) return beautifier.css(code.trim(), options);
+  } catch { /* Código incompleto continua visível sem alterações. */ }
+  return code;
+}
+
+export function createCodeBlock(code, language, { forceFormat = false } = {}) {
+  let result = highlight(code, language?.toLowerCase());
+  const formatted = formatCodeLayout(code, result.language, forceFormat);
+  if (formatted !== code) result = highlight(formatted, result.language);
   return `<pre class="code-block" data-language="${escapeHtml(result.language)}"><code class="hljs">${result.value}</code></pre>`;
 }
 

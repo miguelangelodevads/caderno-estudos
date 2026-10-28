@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCodeBlock, formatCodePaste, looksLikeCode } from "../src/utils/codeFormatting.js";
+import { createCodeBlock, formatCodePaste, looksLikeCode, formatCodeLayout } from "../src/utils/codeFormatting.js";
 
 test("texto comum, acentos, listas e URLs continuam sendo anotações normais", () => {
   for (const text of ["Hoje estudei funções e objetos.", "Olá, mundo!", "1. Ler\n2. Revisar", "https://exemplo.com/pagina", "Preço: R$ 42,00\nDesconto de 10%", "Lembrete { importante }"]) {
@@ -90,4 +90,31 @@ test("usa sinais de sintaxe para não confundir Python, JavaScript e C com CSS",
     ['body { color: red; }', 'css'],
     ['{"nome":"Ana","idade":30}', 'json'],
   ]) assert.match(formatCodePaste(code), new RegExp(`data-language="${language}"`));
+});
+
+test("organiza HTML compacto em linhas, inclusive CSS e JavaScript internos", () => {
+  const code = '<!DOCTYPE html><html><head><style>body{margin:0;color:red}</style></head><body><button onclick="ola()">Olá</button><script>function ola(){alert("Olá");}</script></body></html>';
+  const formatted = formatCodeLayout(code, "html");
+  assert.ok(formatted.split("\n").length > 12);
+  assert.match(formatted, /\n\s+<head>/);
+  assert.match(formatted, /\n\s+margin: 0;/);
+  assert.match(formatted, /\n\s+function ola\(\)/);
+  assert.match(formatted, /onclick="ola\(\)"/);
+  assert.match(createCodeBlock(code), /\n/);
+});
+
+test("formata JavaScript, CSS e JSON sem alterar strings nem números grandes", () => {
+  const js = formatCodeLayout('function x(){const texto="a;b{c}";return texto;}', 'javascript');
+  assert.match(js, /\n\s+const texto/);
+  assert.match(js, /"a;b\{c\}"/);
+  assert.match(formatCodeLayout('body{color:red;margin:0}', 'css'), /\n\s+color: red;/);
+  assert.match(formatCodeLayout('{"id":900719925474099312345,"texto":"a;b"}', 'json'), /900719925474099312345/);
+});
+
+test("mantém código indentado e linguagens sem formatador; botão permite reorganizar", () => {
+  const python = 'def soma(a, b):\n    return a + b';
+  assert.equal(formatCodeLayout(python, 'python', true), python);
+  const js = 'function x(){\n\treturn 1;\n}';
+  assert.equal(formatCodeLayout(js, 'javascript'), js);
+  assert.match(formatCodeLayout(js, 'javascript', true), /\n {2}return 1;/);
 });
