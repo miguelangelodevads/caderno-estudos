@@ -49,19 +49,27 @@ expressa do proprietário. A chave foi validada e armazenada como Secret criptog
 no Worker; a cópia temporária local foi removida. Os dois Secrets Firebase estão
 configurados. A assinatura Webhook Mercado Pago foi gerada na aplicação exclusiva
 `3813018558783294` e armazenada como Secret; notificações de pagamentos foram salvas
-para o endpoint do Worker nos ambientes de teste e produção. O token instalado é de
-teste. A criação integrada do checkout ainda falhou no provedor e não foi validada.
-As credenciais de produção e a ativação final permanecem pendentes.
+para o endpoint do Worker nos ambientes de teste e produção. A tentativa inicial com
+credencial de Checkout Transparente falhou; a configuração seguinte é descrita abaixo.
+Checkout Pro/Preferences foi confirmado no painel. As credenciais corretas de teste
+foram ativadas com autorização do proprietário; o servidor criou um checkout sandbox
+de R$ 2,99 e a página do Mercado Pago exibiu o plano esperado. Nenhum pagamento foi
+executado pelo agente. Depois, a credencial de produção foi armazenada como Secret,
+`MP_ENVIRONMENT=production` foi configurado e a consulta autenticada `/reconcile`
+respondeu 200. Um checkout produtivo de R$ 2,99 foi criado para a conta técnica;
+o pagamento foi entregue ao proprietário para validação. A confirmação real e a
+ativação do frontend/regras finais continuam pendentes.
 
 Durante os testes, o painel recebeu `APP_URL` do Pages, `LEGACY_APP_URL` da Vercel,
 `MP_COLLECTOR_ID=115256254` (ID exibido pela aplicação) e `CHECKOUT_ENABLED=true`
-somente com `MP_ENVIRONMENT=sandbox`. O frontend continua com cobrança desligada.
+inicialmente com `MP_ENVIRONMENT=sandbox`; o painel agora usa `production` e checkout
+habilitado para a validação do proprietário. O frontend continua com cobrança desligada.
 Os defaults versionados mantêm o bloqueio preventivo para uma nova publicação.
 Uma conta Firebase identificada como `caderno-billing-test-…@example.invalid` foi
 criada exclusivamente para testar autenticação e checkout; não contém cadernos.
 Sua sessão permanece no diretório privado ignorado. A integração ainda estava
 classificada como Checkout Transparente; a alteração para Checkout Pro/Preferences
-precisa ser confirmada após a reautenticação solicitada pelo Mercado Pago.
+foi confirmada após a reautenticação solicitada pelo Mercado Pago.
 Rotina administrativa repetível: `node billing/scripts/create-identity.cjs`.
 
 Worker publicado: `https://caderno-estudos-payments.migueltiojhoe.workers.dev`,
