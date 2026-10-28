@@ -1,5 +1,6 @@
 import { escapeHtml, formatCodePaste, createMixedCodeBlock } from "./codeFormatting.js";
 import { sanitizeHtmlContent } from "./sanitize.js";
+import { normalizeTextColor } from "./textColor.js";
 
 export function formatNotePaste(text, clipboardHtml = "") {
   const code = formatCodePaste(text, clipboardHtml);
@@ -14,7 +15,14 @@ export function normalizeNoteHtml(html, { upgradeCodeBlocks = false } = {}) {
   const template = document.createElement("template");
   template.innerHTML = safe;
   template.content.querySelectorAll("*").forEach((element) => {
-    element.removeAttribute("style");
+    const color = normalizeTextColor(element.getAttribute("data-text-color"));
+    if (color && !element.closest("pre.code-block")) {
+      element.setAttribute("data-text-color", color);
+      element.style.cssText = `color: ${color};`;
+    } else {
+      element.removeAttribute("style");
+      element.removeAttribute("data-text-color");
+    }
     // Mantém somente as classes que dão cor aos blocos de código.
     if (!element.closest("pre.code-block")) element.removeAttribute("class");
   });

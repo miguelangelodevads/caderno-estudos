@@ -1,18 +1,69 @@
 import ContentEditableModule from "react-contenteditable";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createCodeBlock } from "../utils/codeFormatting.js";
 import { formatNotePaste, normalizeNoteHtml } from "../utils/noteContent.js";
 import { sanitizeHtmlContent } from "../utils/sanitize.js";
+import { TEXT_COLORS, markEditorTextColors, normalizeTextColor } from "../utils/textColor.js";
 
 const ContentEditable = ContentEditableModule.default || ContentEditableModule;
 
 export default function NoteEditor({ html, onChange, autoFocus = false, ...props }) {
   const changeRef = useRef(onChange);
   const editorRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const colorRef = useRef(TEXT_COLORS[0].value);
+  const [activeColor, setActiveColor] = useState(TEXT_COLORS[0].value);
+  const [insideCode, setInsideCode] = useState(false);
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
+  useEffect(() => {
+    const rememberSelection = () => {
+      const editor = editorRef.current;
+      const selection = window.getSelection();
+      if (!editor || !selection?.rangeCount || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) return;
+      const range = selection.getRangeAt(0);
+      savedRangeRef.current = range.cloneRange();
+      const inCode = [...editor.querySelectorAll("pre.code-block")].some((block) => range.intersectsNode(block));
+      setInsideCode(inCode);
+      if (!inCode) {
+        const selectedColor = normalizeTextColor(document.queryCommandValue("foreColor"));
+        if (selectedColor) {
+          colorRef.current = selectedColor;
+          setActiveColor(selectedColor);
+        }
+      }
+    };
+    document.addEventListener("selectionchange", rememberSelection);
+    return () => document.removeEventListener("selectionchange", rememberSelection);
+  }, []);
   useEffect(() => {
     if (autoFocus) editorRef.current?.focus();
   }, [autoFocus]);
+  const emitChange = (editor) => {
+    markEditorTextColors(editor, colorRef.current);
+    changeRef.current(normalizeNoteHtml(editor.innerHTML));
+  };
+  const applyColor = (value) => {
+    const color = normalizeTextColor(value);
+    const editor = editorRef.current;
+    if (!color || !editor) return;
+    let range = savedRangeRef.current?.cloneRange();
+    if (!range || !editor.contains(range.commonAncestorContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+    }
+    if ([...editor.querySelectorAll("pre.code-block")].some((block) => range.intersectsNode(block))) return;
+    editor.focus();
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    colorRef.current = color;
+    setActiveColor(color);
+    document.execCommand("styleWithCSS", false, true);
+    document.execCommand("foreColor", false, color);
+    emitChange(editor);
+    if (selection.rangeCount) savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+  };
   const handlePaste = (event) => {
     const editor = event.currentTarget;
     const text = event.clipboardData.getData("text/plain");
@@ -50,7 +101,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
       selection.removeAllRanges();
       selection.addRange(caret);
     }
-    changeRef.current(normalizeNoteHtml(editor.innerHTML));
+    emitChange(editor);
   };
 
   const handleBlur = (event) => {
@@ -62,12 +113,28 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
       const text = code ? code.innerText : block.innerText;
       block.outerHTML = sanitizeHtmlContent(createCodeBlock(text, block.dataset.language));
     });
-    if (editor.innerHTML !== previous) changeRef.current(normalizeNoteHtml(editor.innerHTML));
+    if (editor.innerHTML !== previous) emitChange(editor);
   };
 
   return <div className='note-editor-wrap min-w-0'>
+    <div role='toolbar' aria-label='Cores do texto' className='flex items-center flex-wrap gap-2 mb-2 font-sans text-xs text-slate-500'>
+      <span>Cor do texto</span>
+      {TEXT_COLORS.map((color) => <button key={color.value} type='button'
+        aria-label={`Cor ${color.name.toLowerCase()}`} aria-pressed={activeColor === color.value}
+        title={insideCode ? "As cores do código são automáticas" : color.name}
+        disabled={insideCode} onMouseDown={(event) => event.preventDefault()}
+        onClick={() => applyColor(color.value)}
+        className={`w-5 h-5 rounded-full border border-white shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${activeColor === color.value ? "ring-2 ring-offset-2 ring-slate-400" : "hover:scale-110"}`}
+        style={{ backgroundColor: color.value }} />)}
+      <label className='flex items-center gap-1 cursor-pointer'>
+        <span>Outra cor</span>
+        <input type='color' aria-label='Cor personalizada' value={activeColor} disabled={insideCode}
+          onChange={(event) => applyColor(event.target.value)}
+          className='w-6 h-6 cursor-pointer border-0 bg-transparent p-0 disabled:opacity-30' />
+      </label>
+    </div>
     <ContentEditable {...props} innerRef={editorRef} html={normalizeNoteHtml(html, { upgradeCodeBlocks: true })}
-      onChange={(event) => changeRef.current(normalizeNoteHtml(event.target.value))}
+      onChange={() => emitChange(editorRef.current)}
       onPaste={handlePaste} onBlur={handleBlur} spellCheck={false} />
   </div>;
 }
