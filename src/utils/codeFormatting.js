@@ -122,7 +122,7 @@ export function looksLikeCode(text) {
   return structural && hljs.highlightAuto(value.slice(0, 10000)).relevance >= 5;
 }
 
-// Retorna null para manter a colagem normal de texto e formatação rica.
+// Retorna null para que o editor aplique o padrão do aplicativo ao texto comum.
 export function formatCodePaste(text, clipboardHtml = "") {
   const normalized = text.replace(/\r\n?/g, "\n");
   const fences = [...normalized.matchAll(/^```([\w#+.-]*)[^\S\n]*\n([\s\S]*?)^```[^\S\n]*(?=\n|$)/gm)];
@@ -132,7 +132,7 @@ export function formatCodePaste(text, clipboardHtml = "") {
     for (const match of fences) {
       const prose = normalized.slice(offset, match.index);
       if (prose) html += `<p>${escapeHtml(prose).replace(/\n/g, "<br>")}</p>`;
-      html += createCodeBlock(match[2].replace(/\n$/, ""), match[1] || undefined);
+      html += createCodeBlock(match[2].replace(/\n$/, ""), match[1] || undefined, { forceFormat: true });
       offset = match.index + match[0].length;
     }
     const tail = normalized.slice(offset);
@@ -140,7 +140,7 @@ export function formatCodePaste(text, clipboardHtml = "") {
     return `${html}<p><br></p>`;
   }
   if (/<(?:pre|code)\b/i.test(clipboardHtml) || looksLikeCode(normalized)) {
-    return `${createCodeBlock(normalized)}<p><br></p>`;
+    return `${createCodeBlock(normalized, undefined, { forceFormat: true })}<p><br></p>`;
   }
   return null;
 }
