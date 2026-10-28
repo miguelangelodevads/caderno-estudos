@@ -1,7 +1,8 @@
 # Plano de pagamento automático — Caderno de Estudos
 
-Estado em 28/10/2026: implementação preparada; backup, isenções antigas e regras de
-preparação aplicados. Cobrança automática e migração de hospedagem ainda desativadas.
+Estado em 28/10/2026: cobrança automática ativa na Cloudflare e regras finais publicadas.
+Pagamento real de R$ 2,99 aprovado e reconciliado; notificação assinada validada com 200 OK.
+Todas as 17 contas anteriores ao corte de 09:06:05 de Brasília receberam isenção permanente.
 
 ## Execução já verificada
 
@@ -12,11 +13,13 @@ preparação aplicados. Cobrança automática e migração de hospedagem ainda d
 - Conta antiga aberta no site publicado continuou acessando os próprios cadernos.
 - Implementação e validações documentadas em `billing/README.md`.
 - Repositório autorizado preservando Setlist Pro; site candidato publicado em
-  `https://caderno-estudos-6ux.pages.dev/`, com cobrança desligada e domínio autorizado.
+  `https://caderno-estudos-6ux.pages.dev/`, com cobrança ativa e domínio autorizado.
 - Worker publicado em `https://caderno-estudos-payments.migueltiojhoe.workers.dev`,
   com identidade exclusiva de Firestore e Secrets Firebase configurados e validados.
-- Pendente: configurar Mercado Pago, validar login e pagamento integrado, executar
-  inventário final e ativar a cobrança coordenadamente.
+- Checkout Pro/Preferences configurado exclusivamente para o Caderno. Pagamento real,
+  consulta autenticada e assinatura Webhook confirmados; nenhuma chave no frontend/GitHub.
+- Backup final com 17 contas e 17 cadernos; conta anterior entra, cadastro novo exibe
+  cobrança e não consegue acessar cadernos ou aprovar a si mesmo no Firebase.
 
 ## Decisões confirmadas pelo proprietário
 
@@ -211,5 +214,5 @@ real configurada na conta antes da ativação. Nenhum plano pago será habilitad
 - Mercado Pago Webhooks: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications
 - Referência privada do proprietário: https://github.com/miguelangelodevads/setlist-pro/blob/main/billing/README.md
 
-O estado acima confirma somente as etapas ali listadas. Worker e Pages foram publicados
-com cobrança desligada. Ainda não houve validação de pagamento real nem ativação da cobrança.
+O estado acima registra a execução. As seções de sequência e critérios permanecem como
+referência operacional; evidências privadas e histórico estão em `billing/README.md`.

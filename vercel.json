@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "destination": "https://caderno-estudos-6ux.pages.dev/:path*",
+      "permanent": false
+    }
+  ]
+}

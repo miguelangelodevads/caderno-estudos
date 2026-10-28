@@ -9,12 +9,13 @@ head_sampling_rate = 1
 
 [vars]
 APP_ID = "caderno-estudos"
-APP_URL = "https://caderno-estudos-alpha.vercel.app/"
+APP_URL = "https://caderno-estudos-6ux.pages.dev/"
+LEGACY_APP_URL = "https://caderno-estudos-alpha.vercel.app/"
 WORKER_URL = "https://caderno-estudos-payments.migueltiojhoe.workers.dev"
 FIREBASE_PROJECT_ID = "caderno-estudos-7adbd"
-MP_ENVIRONMENT = "sandbox"
-CHECKOUT_ENABLED = "false"
+MP_ENVIRONMENT = "production"
+CHECKOUT_ENABLED = "true"
 PLAN_ID = "caderno-vitalicio-299-v1"
 PLAN_TITLE = "Caderno de Estudos — acesso vitalício"
 PLAN_AMOUNT_CENTS = "299"
-MP_COLLECTOR_ID = "auto"
+MP_COLLECTOR_ID = "115256254"

@@ -7,20 +7,27 @@ da integração do Setlist Pro, do mesmo proprietário. O Setlist não foi alter
 
 ## Estado atual e ativação
 
-A publicação do código não ativa cobrança: `VITE_BILLING_ENABLED=false` por padrão,
-`CHECKOUT_ENABLED=false` e ambiente sandbox no Worker. Não habilitar esses controles
-antes de validar toda a configuração e executar o corte final dos usuários antigos.
+Cobrança ativada em 28/10/2026 no Pages e no Worker de produção: pagamento único
+de R$ 2,99. `VITE_BILLING_ENABLED=true` e a URL do Worker estão configurados no build
+de produção do Pages. O toml acompanha as variáveis produtivas. Os defaults internos
+do bundle continuam bloqueados por segurança se os bindings de publicação faltarem.
 
 Em 28/10/2026 foram inventariadas 15 contas e 17 cadernos. As 15 contas receberam
 isenção permanente. Uma comparação posterior confirmou os mesmos UIDs, IDs e conteúdos
 dos 17 cadernos. Os backups e relatórios com dados pessoais estão em `billing/private/`,
 ignorados pelo Git e excluídos dos artefatos públicos. Não enviar essa pasta ao suporte
 ou à hospedagem. Novos cadastros anteriores à ativação final também devem receber
-isenção na última reconciliação; o primeiro inventário não substitui o corte final.
+isenção na última reconciliação; o primeiro inventário não substituiu o corte final.
+O corte final foi `2026-10-28T12:06:05.539Z` (09:06:05 de Brasília): 17 contas
+e 17 cadernos. A migração `legacy-79968f123f657d67` preservou 15 isenções e concedeu
+mais duas, incluindo a conta técnica. Cadastros posteriores ao corte exigem compra.
 
 As regras de preparação foram publicadas no projeto `caderno-estudos-7adbd`: acesso
 somente aos próprios dados, sem ainda exigir compra. As regras anteriores eram públicas.
-As regras finais com exigência de acesso aprovado ainda não devem ser ativadas.
+Depois da conferência das isenções, as regras finais `billing/firestore.rules` foram
+compiladas e publicadas. Uma conta técnica criada após o corte foi bloqueada para
+ler/criar cadernos e para gravar sua própria aprovação. Na interface, mostrou a tela
+de pagamento de R$ 2,99. A conta técnica anterior ao corte entrou normalmente.
 
 ## Estrutura
 
@@ -57,13 +64,19 @@ de R$ 2,99 e a página do Mercado Pago exibiu o plano esperado. Nenhum pagamento
 executado pelo agente. Depois, a credencial de produção foi armazenada como Secret,
 `MP_ENVIRONMENT=production` foi configurado e a consulta autenticada `/reconcile`
 respondeu 200. Um checkout produtivo de R$ 2,99 foi criado para a conta técnica;
-o pagamento foi entregue ao proprietário para validação. A confirmação real e a
-ativação do frontend/regras finais continuam pendentes.
+o pagamento foi concluído pelo proprietário. A reconciliação autenticada respondeu
+`active:true`; o recibo do servidor confirma `approved`, 299 centavos, produção,
+sem estorno e sem isenção antiga na conta técnica. Não foi feita aprovação manual.
+A primeira entrega Webhook retornou 401 porque o campo da assinatura estava mascarado.
+O proprietário transferiu a chave real diretamente para o Secret da Cloudflare.
+A simulação assinada do Mercado Pago para o mesmo pagamento real retornou 200 OK,
+com consulta do recurso no provedor e tratamento idempotente do recibo já aprovado.
+Não foi necessário outro pagamento e o agente não executou transação financeira.
 
 Durante os testes, o painel recebeu `APP_URL` do Pages, `LEGACY_APP_URL` da Vercel,
 `MP_COLLECTOR_ID=115256254` (ID exibido pela aplicação) e `CHECKOUT_ENABLED=true`
 inicialmente com `MP_ENVIRONMENT=sandbox`; o painel agora usa `production` e checkout
-habilitado para a validação do proprietário. O frontend continua com cobrança desligada.
+habilitado. O frontend e as regras finais também estão ativos no Pages.
 Os defaults versionados mantêm o bloqueio preventivo para uma nova publicação.
 Uma conta Firebase identificada como `caderno-billing-test-…@example.invalid` foi
 criada exclusivamente para testar autenticação e checkout; não contém cadernos.
@@ -73,10 +86,10 @@ foi confirmada após a reautenticação solicitada pelo Mercado Pago.
 Rotina administrativa repetível: `node billing/scripts/create-identity.cjs`.
 
 Worker publicado: `https://caderno-estudos-payments.migueltiojhoe.workers.dev`,
-separado de `setlist-pro-payments`, com cobrança desligada e ambiente sandbox.
+separado de `setlist-pro-payments`, com cobrança ativa em produção.
 `/health` e `/plan` foram verificados; `/access` exige autenticação.
 Root do projeto Cloudflare: `billing/worker`. Build de frontend não é necessário.
-Deploy pelo Wrangler 4: `npx wrangler@4 deploy`. O toml tem cobrança desabilitada.
+Deploy pelo Wrangler 4: `npx wrangler@4 deploy`. O toml acompanha a produção ativa.
 Atualizar `WORKER_URL` para a URL HTTPS realmente atribuída antes da validação integrada.
 
 Variáveis públicas do Worker:
@@ -153,9 +166,10 @@ operações de cadernos a qualquer conta nova ainda não aprovada.
 
 ## Cloudflare Pages
 
-Candidato publicado em `https://caderno-estudos-6ux.pages.dev/`, com cobrança desligada.
+Produção publicada em `https://caderno-estudos-6ux.pages.dev/`, com cobrança ativa.
 O domínio foi autorizado no Firebase preservando os domínios anteriores. A tela de
-login carregou; o login de uma conta real neste domínio ainda precisa ser validado.
+login carregou e a conta técnica anterior ao corte entrou; um cadastro posterior ao
+corte exibiu pagamento e foi bloqueado pelas regras até a aprovação.
 A integração GitHub conserva Setlist Pro e inclui somente o Caderno adicionalmente.
 
 Usar o repositório `miguelangelodevads/caderno-estudos`, branch `main`, root `/`,
@@ -172,6 +186,11 @@ autorizados; não selecionar todos por conveniência.
 Sessões e rascunhos locais não atravessam domínios. Manter a Vercel durante a transição,
 confirmar sincronização e orientar eventual novo login/instalação do PWA. Não limpar
 armazenamento local automaticamente e não desativar a Vercel nesta preparação.
+
+Após a validação do Pages, `vercel.json` encaminha novos acessos da hospedagem antiga
+para o Pages por redirecionamento temporário, preservando caminho e consulta. O projeto
+Vercel e o Firebase não são excluídos. Sessões locais do PWA antigo podem exigir entrar
+novamente no novo endereço; não apagar rascunhos nem o armazenamento para forçar a troca.
 
 ## Rollback
 
