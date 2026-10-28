@@ -1,5 +1,6 @@
 import {signInWithCustomToken} from 'firebase/auth';
 import {wrapVaultForDevice,unlockVaultFromDevice} from './notebookCrypto.js';
+import {ensureDeviceSession} from './deviceSession.js';
 const LOCAL_TEST=import.meta.env.DEV&&import.meta.env.VITE_USE_FIREBASE_EMULATORS==='true';
 const API=LOCAL_TEST?'http://127.0.0.1:5175':import.meta.env.VITE_DEVICE_API_URL;
 const starting=new Map();
@@ -43,7 +44,9 @@ async function startDeviceClient(auth,user,retried=false){
   const signature=base64(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},device.privateKey,message));
   return request('/'+purpose,{deviceId:device.id,challengeId:c.challengeId,signature,payload});
  };
- try{const response=await call('session',{publicKey:device.publicKey,label:browserDeviceLabel()});await signInWithCustomToken(auth,response.customToken);}
+ try{await ensureDeviceSession({user:auth.currentUser,deviceId:device.id,
+  authorize:()=>call('session',{publicKey:device.publicKey,label:browserDeviceLabel()}),
+  signIn:token=>signInWithCustomToken(auth,token)});}
  catch(e){if(e.status===410){await item(`identity:${uid}`,'delete');await item(`remember:${uid}:${device.id}`,'delete');const token=await auth.currentUser.getIdTokenResult();if(!retried&&token.claims.firebase?.sign_in_provider==='password'&&Date.now()/1000-token.claims.auth_time<300)return startDeviceClient(auth,auth.currentUser,true);}throw e;}
  const localName=`remember:${uid}:${device.id}`;
  return {
