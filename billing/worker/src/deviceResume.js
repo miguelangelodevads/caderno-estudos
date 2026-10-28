@@ -10,8 +10,8 @@ export async function resumeDevice(user,body,store,now,proofBytes) {
  if(typeof requestId!=='string'||! /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(requestId))fail(400,'Confirmação inválida.');
  if(!Number.isSafeInteger(payload?.issuedAt)||Math.abs(now-payload.issuedAt)>120000)fail(422,'Atualize o relógio do aparelho.');
  const root=`users/${user.uid}/`,devicePath=root+'devices/'+deviceId,receiptPath=root+'security/deviceResumes';
+ const paths=[receiptPath,devicePath,'access/'+user.uid,devicePath+'/grants/key'];
  return store.atomic(async tx=>{
-  const paths=[receiptPath,devicePath,'access/'+user.uid,devicePath+'/grants/key'];
   const [prior,device,access,grant]=tx.getMany?await tx.getMany(paths):await Promise.all(paths.map(path=>tx.get(path)));
   if(!isAccessActive(access?.data))fail(403,'Acesso à conta indisponível.');
   if(!device?.data.active)fail(410,'Acesso deste dispositivo revogado. Entre novamente.');
@@ -34,5 +34,5 @@ export async function resumeDevice(user,body,store,now,proofBytes) {
   // leaves the browser, and absence/expiry never falls back to plaintext.
   const valid=grant&&(grant.data.expiresAt===null||(Number.isFinite(grant.data.expiresAt)&&grant.data.expiresAt>now));
   return {grant:valid?grant.data:null};
- });
+ },paths);
 }

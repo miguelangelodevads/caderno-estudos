@@ -1,6 +1,7 @@
 import {signInWithCustomToken} from 'firebase/auth';
 import {wrapVaultForDevice,unlockVaultFromDevice} from './notebookCrypto.js';
 import {ensureDeviceSession} from './deviceSession.js';
+import {createGrantPreparation} from './grantPreparation.js';
 const LOCAL_TEST=import.meta.env.DEV&&import.meta.env.VITE_USE_FIREBASE_EMULATORS==='true';
 const API=LOCAL_TEST?'http://127.0.0.1:5175':import.meta.env.VITE_DEVICE_API_URL;
 const starting=new Map();
@@ -35,7 +36,7 @@ async function startDeviceClient(auth,user,retried=false){
  const request=async(path,body)=>{
   if(auth.currentUser?.uid!==uid)throw new Error('A conta mudou.');
   let response;try{response=await fetch(API+path,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${await auth.currentUser.getIdToken()}`},body:JSON.stringify(body),cache:'no-store'});}catch{throw new Error('Não foi possível confirmar o aparelho. Confira a conexão e tente novamente.');}
-  const data=await response.json();if(!response.ok){const error=new Error(data.error||'Falha ao confirmar este aparelho.');error.status=response.status;throw error;}return data;
+  const data=await response.json();if(auth.currentUser?.uid!==uid)throw new Error('A conta mudou.');if(!response.ok){const error=new Error(data.error||'Falha ao confirmar este aparelho.');error.status=response.status;throw error;}return data;
  };
  const call=async(purpose,payload={})=>{
   const c=await request('/challenge',{deviceId:device.id,purpose});
@@ -49,9 +50,21 @@ async function startDeviceClient(auth,user,retried=false){
   signIn:token=>signInWithCustomToken(auth,token)});}
  catch(e){if(e.status===410){await item(`identity:${uid}`,'delete');await item(`remember:${uid}:${device.id}`,'delete');const token=await auth.currentUser.getIdTokenResult();if(!retried&&token.claims.firebase?.sign_in_provider==='password'&&Date.now()/1000-token.claims.auth_time<300)return startDeviceClient(auth,auth.currentUser,true);}throw e;}
  const localName=`remember:${uid}:${device.id}`;
+ const fetchGrant=async()=>{
+  if(LOCAL_TEST)return call('grant');
+  const requestId=crypto.randomUUID(),payload={issuedAt:Date.now()};
+  const hash=await crypto.subtle.digest('SHA-256',encoder.encode(JSON.stringify(payload)));
+  const message=encoder.encode(JSON.stringify(['caderno-device-v1',uid,device.id,'resume',requestId,base64(hash)]));
+  const signature=base64(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},device.privateKey,message));
+  try{return (await request('/resume',{deviceId:device.id,requestId,payload,signature})).grant;}
+  catch(e){if(![404,405,422].includes(e.status))throw e;return call('grant');}
+ };
+ const preparation=createGrantPreparation(()=>item(localName,'get'),fetchGrant);
  return {
   id:device.id,
+  prefetchRestore:()=>preparation.prefetch(),
   async trust(record,secret,recovery,label){
+   preparation.clear();
    const key=await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);
    await item(localName,'put',{key,keyId:record.keyId});
    const stored=await item(localName,'get');if(!stored?.key||stored.key.extractable)throw new Error('Não foi possível proteger a chave neste navegador.');
@@ -59,24 +72,16 @@ async function startDeviceClient(auth,user,retried=false){
    await call('trust',{keyId:record.keyId,envelope,label});
   },
   async restore(record){
-   const stored=await item(localName,'get');if(!stored?.key||stored.keyId!==record.keyId)return null;
    try{
-    let grant;
-    if(!LOCAL_TEST){
-     const requestId=crypto.randomUUID(),payload={issuedAt:Date.now()};
-     const hash=await crypto.subtle.digest('SHA-256',encoder.encode(JSON.stringify(payload)));
-     const message=encoder.encode(JSON.stringify(['caderno-device-v1',uid,device.id,'resume',requestId,base64(hash)]));
-     const signature=base64(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},device.privateKey,message));
-     try{grant=(await request('/resume',{deviceId:device.id,requestId,payload,signature})).grant;}
-     catch(e){if(![404,405,422].includes(e.status))throw e;grant=await call('grant');}
-    }else grant=await call('grant');
+    const result=await preparation.take(record.keyId);if(!result)return null;
+    const {stored,grant}=result;
     if(!grant){await item(localName,'delete');return null;}
     return await unlockVaultFromDevice(record,grant,stored.key,{uid,appId:record.appId},device.id);
    }
    catch(e){if([404,410].includes(e.status))await item(localName,'delete');if(e.status===410)throw e;return null;}
   },
-  async forget(){await item(localName,'delete');await call('forget').catch(()=>{});},
-  clearLocal:()=>item(localName,'delete'),
+  async forget(){preparation.clear();await item(localName,'delete');await call('forget').catch(()=>{});},
+  clearLocal:()=>{preparation.clear();return item(localName,'delete');},
   revoke:targetId=>call('revoke',{targetId}),
  };
 }

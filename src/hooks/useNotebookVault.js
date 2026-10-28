@@ -46,6 +46,12 @@ export function useNotebookVault({db,auth,user,appId,active}) {
     return client;
     })().catch(e=>{connecting=null;throw e;}));
     connectDeviceRef.current=connect;
+    // Only an existing authenticated device can prepare its online grant while
+    // the independent, authoritative vault snapshot is still being fetched.
+    user.getIdTokenResult().then(({claims})=>{
+      if(alive&&claims.sub===uid&&claims.firebase?.sign_in_provider==='custom'&&typeof claims.deviceId==='string')
+        return connect().then(client=>alive?client.prefetchRestore():undefined);
+    }).catch(()=>{ /* The normal restore path reports failures and stays locked. */ });
     // Start with the live server snapshot rather than reading the same document
     // once and then subscribing again. Only a new device needs session enrollment.
     let enrollmentAttempted=false;

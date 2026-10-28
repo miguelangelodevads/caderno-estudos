@@ -179,8 +179,6 @@ de cópias antigas continuam operações específicas, sem apagar backups automa
 Não desabilitar a flag nem restaurar uma interface anterior à criptografia depois de
 existirem cofres ativos: manter API e regras compatíveis e corrigir a versão adiante.
 
-## Limites de privacidade que precisam ser comunicados
-
 ## Abertura em aparelho confiável — otimização de 28/10/2026
 
 O frontend inicia diretamente a assinatura online do cofre, sem o `getDoc` anterior
@@ -201,6 +199,28 @@ levou 1.598, 1.876 e 1.743 ms. As medições exercitam a resposta sem concessão
 técnica e os bloqueios de repetição/revogação, sem alterar cadernos. Não são medições
 da abertura completa no aparelho do proprietário, que também inclui rede, Firebase
 e renderização. 121 testes, lint e build habilitado passaram nesta atualização.
+
+### Preparação em paralelo e leitura inicial transacional
+
+A confirmação online de aparelhos com sessão existente começa em paralelo com a
+assinatura autoritativa do registro do cofre. Ainda são necessários o snapshot do
+servidor, a prova ECDSA aprovada e a chave do aparelho antes de decifrar o conteúdo.
+Não há liberação por cache offline ou exibição antecipada de anotações.
+
+A preparação existe somente em memória, é consumida por abertura e expira em cinco
+segundos após a resposta. Confirmações antigas são refeitas. Bloquear/sair/trocar a
+confiança invalida respostas pendentes; a chave local é relida antes do uso, incluindo
+remoção da confiança por outra aba. Uma falha de rede ou revogação não vira desbloqueio.
+
+No servidor, `batchGet` pode iniciar a transação e devolver as quatro leituras no mesmo
+pedido. O commit preserva as versões e repete toda a autorização se houver conflito;
+o fluxo normal dos pagamentos mantém a criação explícita da transação.
+
+131 testes, lint e build habilitado passaram. Em nova medição da conta técnica,
+as chamadas de confirmação levaram 2.269, 1.867 e 2.747 ms. A oscilação não permite
+afirmar uma melhora numérica isolada do servidor sobre a rodada anterior. O ganho
+estrutural validado é a eliminação de uma viagem ao banco e da espera sequencial
+no frontend. A abertura automática foi conferida no navegador com o cofre fictício.
 
 ## Limites de privacidade que precisam ser comunicados
 
