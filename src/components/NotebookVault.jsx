@@ -13,7 +13,7 @@ export default function NotebookVault({vault,onLogout,onClose}) {
   const confirmPassword=()=>{if(password!==confirm)throw new Error('As senhas não coincidem.');};
   return <div className='min-h-screen bg-[#efebe1] text-slate-800 p-4 sm:p-10 flex items-center justify-center'>
     <section className='w-full max-w-xl bg-white rounded-2xl p-6 sm:p-8 shadow-lg space-y-5' aria-label='Cofre de anotações'>
-      <p className='text-sm text-teal-700 font-bold'>Criptografia — ambiente de teste</p>
+      <p className='text-sm text-teal-700 font-bold'>{import.meta.env.DEV&&import.meta.env.VITE_USE_FIREBASE_EMULATORS==='true'?'Criptografia — ambiente de teste':'Proteção das suas anotações'}</p>
       <h1 className='font-serif text-2xl font-bold'>{setup?'Proteja suas anotações':migrating?'Concluir proteção dos cadernos':changing?'Trocar a senha do cofre':'Desbloquear suas anotações'}</h1>
       <p className='text-sm leading-6'>A senha do cofre é diferente da senha de login. Sem ela ou sem a chave de recuperação, o suporte não poderá recuperar seu conteúdo.</p>
       {vault.status==='checking' && <p role='status'>Consultando o cofre…</p>}

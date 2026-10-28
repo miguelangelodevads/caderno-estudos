@@ -61,7 +61,8 @@ export class Firestore {
                 put:(path, data, previous) => writes.push({
                     update:{name:this.name + '/' + this.prefix + path, fields:encodeFields(data)},
                     currentDocument:previous ? {updateTime:previous.updateTime} : {exists:false}
-                })
+                }),
+                delete:(path, previous) => { if(previous) writes.push({delete:this.name+'/'+this.prefix+path,currentDocument:{updateTime:previous.updateTime}}); }
             };
             try {
                 const result = await action(tx);

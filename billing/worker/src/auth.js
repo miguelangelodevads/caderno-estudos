@@ -10,7 +10,7 @@ export const base64url = bytes => toBase64(bytes).replace(/\+/g, '-').replace(/\
 export const unbase64 = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 const jwtPart = value => base64url(encoder.encode(JSON.stringify(value)));
 
-export async function verifyFirebaseToken(token, projectId, fetcher = fetch, now = Date.now()) {
+export async function verifyFirebaseToken(token, projectId, fetcher = fetch, now = Date.now(), includeClaims = false) {
     try {
         if (typeof token !== 'string' || token.length > 12000) throw new Error();
         const parts = token.split('.');
@@ -40,11 +40,44 @@ export async function verifyFirebaseToken(token, projectId, fetcher = fetch, now
             {name:'RSASSA-PKCS1-v1_5', hash:'SHA-256'}, false, ['verify']);
         if (!await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, unbase64(parts[2]),
             encoder.encode(parts[0] + '.' + parts[1]))) throw new Error();
-        return {uid:payload.sub};
+        return includeClaims ? {...payload,uid:payload.sub} : {uid:payload.sub};
     } catch (error) {
         if (error instanceof HttpError) throw error;
         throw new HttpError(401, 'Entre novamente na sua conta.');
     }
+}
+
+async function signingKey(env) {
+    let pem = (env.FIREBASE_PRIVATE_KEY || '').trim().replace(/,\s*$/, '');
+    if (pem.startsWith('"')) pem = JSON.parse(pem);
+    pem = pem.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+    return crypto.subtle.importKey('pkcs8', unbase64(pem.replace(/-----[^-]+-----|\s/g, '')),
+        {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);
+}
+
+export async function createDeviceToken(env, uid, deviceId, now = Date.now()) {
+    const seconds = Math.floor(now / 1000);
+    const input = jwtPart({alg:'RS256',typ:'JWT'}) + '.' + jwtPart({
+        iss:env.FIREBASE_CLIENT_EMAIL,sub:env.FIREBASE_CLIENT_EMAIL,
+        aud:'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+        iat:seconds,exp:seconds+300,uid,claims:{deviceId}
+    });
+    const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5',await signingKey(env),encoder.encode(input));
+    return input + '.' + base64url(signature);
+}
+
+// End-user lookup checks the current account without expanding server IAM access.
+export async function verifyDeviceUser(token, env, fetcher = fetch, now = Date.now()) {
+    const user = await verifyFirebaseToken(token,env.FIREBASE_PROJECT_ID,fetcher,now,true);
+    if (!env.FIREBASE_WEB_API_KEY) throw new HttpError(503,'Verificação da conta não configurada.');
+    const response = await fetcher('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key='+encodeURIComponent(env.FIREBASE_WEB_API_KEY),{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken:token})
+    });
+    if (!response.ok) throw new HttpError(response.status>=500?503:401,'Entre novamente na sua conta.');
+    const account = (await response.json()).users?.find(account=>account.localId===user.uid);
+    if (!account || account.disabled || !Number.isFinite(Number(account.validSince)) || user.auth_time < Number(account.validSince))
+        throw new HttpError(401,'Entre novamente na sua conta.');
+    return user;
 }
 
 export async function googleAccessToken(env, fetcher = fetch, now = Date.now()) {

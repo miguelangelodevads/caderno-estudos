@@ -2,6 +2,7 @@ import {HttpError, verifyFirebaseToken, verifyMercadoPagoSignature} from './auth
 import {Firestore} from './firestore.js';
 import {createCheckout, applyPayment, reconcileAccess, planFromEnv, isAccessActive} from './payments.js';
 import {publicDefaults} from './config.js';
+import {handleDevices} from './devices.js';
 
 async function boundedJSON(request) {
     if (Number(request.headers.get('content-length') || 0) > 16384) throw new HttpError(413,'Notificação muito grande.');
@@ -67,6 +68,13 @@ export function createHandler(dependencies = {}) {
             if (origin && !allowedOrigin) throw new HttpError(403,'Origem não permitida.');
             if (url.pathname === '/health' && request.method === 'GET') return reply({service:'caderno-estudos-payments',version:'billing-v1',environment:env.MP_ENVIRONMENT || 'unconfigured'});
             if (url.pathname === '/plan' && request.method === 'GET') return reply({...planFromEnv(env),enabled:env.CHECKOUT_ENABLED === 'true'});
+            if (url.pathname.startsWith('/devices/')) {
+                if (env.DEVICES_ENABLED !== 'true') throw new HttpError(503,'Proteção dos dispositivos em preparação.');
+                requiredConfiguration(env,false);
+                stage='DEVICE_AUTHORIZATION';
+                const body=request.method==='POST'?await boundedJSON(request):null;
+                return reply(await handleDevices(request,env,dependencies.store||new Firestore(env,fetcher),body,{...dependencies,fetcher}));
+            }
             if (!['/checkout','/access','/reconcile','/webhooks/mercadopago'].includes(url.pathname)) return reply({error:'Não encontrado.'},404);
             requiredConfiguration(env, url.pathname !== '/access');
             const store = dependencies.store || new Firestore(env,fetcher);

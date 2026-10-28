@@ -1,12 +1,12 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {doc,collection,onSnapshot,getDocs,runTransaction} from 'firebase/firestore';
+import {doc,collection,onSnapshot,getDoc,getDocs,runTransaction} from 'firebase/firestore';
 import {createVault,unlockVault,recoverVault,changeVaultPassword,encryptNotebook,decryptNotebook} from '../utils/notebookCrypto.js';
 import {createNotebookGateway,createEncryptedDraftStorage} from '../utils/encryptedStorage.js';
 import {createDeviceClient} from '../utils/trustedDevice.js';
 import {signOut} from 'firebase/auth';
 
-// This branch is restricted to explicit emulator testing. Real accounts cannot opt in.
-export const VAULT_ENABLED=import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS==='true' && import.meta.env.VITE_E2EE_ENABLED==='true';
+// Explicit deployment flag; Firebase emulators remain restricted to DEV in firebase.js.
+export const VAULT_ENABLED=import.meta.env.VITE_E2EE_ENABLED==='true';
 
 export function useNotebookVault({db,auth,user,appId,active}) {
   const uid=user?.uid;
@@ -15,6 +15,7 @@ export function useNotebookVault({db,auth,user,appId,active}) {
   const [panel,setPanel]=useState(false);const [prepared,setPrepared]=useState(null);
   const [devices,setDevices]=useState([]),[devicesPanel,setDevicesPanel]=useState(false);
   const deviceClientRef=useRef(null),draftsRef=useRef(null);
+  const connectDeviceRef=useRef(null);
   const recordRef=useRef(null),sessionRef=useRef(null),uidRef=useRef(uid);
   const getSession=()=>sessionRef.current?.identity.uid===uidRef.current?sessionRef.current:null;
   // The gateway stores deferred callbacks; it never invokes them during render.
@@ -32,8 +33,9 @@ export function useNotebookVault({db,auth,user,appId,active}) {
     let alive=true,autoAttempted=false;const stops=[];uidRef.current=uid;sessionRef.current=null;recordRef.current=null;deviceClientRef.current=null;
     queueMicrotask(()=>{if(alive){setRecord(null);setDraftStorage(null);setPrepared(null);setError('');setPanel(false);setDevices([]);setDevicesPanel(false);setStatus(VAULT_ENABLED&&uid&&active?'checking':'disabled');}});
     if(!VAULT_ENABLED || !uid || !active)return()=>{alive=false;};
-    (async()=>{
-    const client=await createDeviceClient(auth,user);if(!alive)return;deviceClientRef.current=client;
+    let connecting;
+    const connect=()=>connecting||(connecting=(async()=>{
+    const client=await createDeviceClient(auth,user);if(!alive)throw new Error('A conta mudou.');deviceClientRef.current=client;
     stops.push(onSnapshot(doc(db,'artifacts',appId,'users',uid,'devices',client.id),{includeMetadataChanges:true},async snapshot=>{
       if(!alive||snapshot.metadata.fromCache||snapshot.data()?.active!==false)return;
       await draftsRef.current?.flush().catch(()=>{});await client.clearLocal().catch(()=>{});
@@ -41,6 +43,14 @@ export function useNotebookVault({db,auth,user,appId,active}) {
       await signOut(auth);
     }));
     stops.push(onSnapshot(collection(db,'artifacts',appId,'users',uid,'devices'),snapshot=>{if(alive)setDevices(snapshot.docs.map(d=>({...d.data(),id:d.id,current:d.id===client.id})).sort((a,b)=>b.lastSeen-a.lastSeen));}));
+    return client;
+    })().catch(e=>{connecting=null;throw e;}));
+    connectDeviceRef.current=connect;
+    (async()=>{
+    // Accounts without a vault keep their existing login and do not depend on the device API.
+    let needsDevice=true;
+    try{needsDevice=(await getDoc(ref())).exists();}catch(e){if(e.code!=='permission-denied')throw e;}
+    if(needsDevice)await connect();if(!alive)return;
     stops.push(onSnapshot(ref(),{includeMetadataChanges:true},snapshot=>{
       if(!alive || snapshot.metadata.fromCache)return;
       const data=snapshot.exists()?snapshot.data():null;
@@ -52,13 +62,13 @@ export function useNotebookVault({db,auth,user,appId,active}) {
         sessionRef.current=null;setDraftStorage(null);setStatus('locked');
         if(!autoAttempted&&data.phase==='active'){
           autoAttempted=true;setStatus('checking');
-          client.restore(data.cryptoRecord).then(key=>{if(!alive)return;if(key)return install(key,data);setStatus('locked');}).catch(()=>{if(alive)setStatus('locked');});
+          connect().then(client=>client.restore(data.cryptoRecord)).then(key=>{if(!alive)return;if(key)return install(key,data);setStatus('locked');}).catch(()=>{if(alive)setStatus('locked');});
         }
       }
       else {s.phase=data.phase;setStatus(data.phase==='active'?'ready':'migration');}
     },()=>{if(alive){setStatus('error');setError('Não foi possível consultar o cofre. Confira a conexão.');}}));
     })().catch(e=>{if(alive){setStatus('error');setError(e.message||'Não foi possível confirmar este aparelho.');}});
-    return ()=>{alive=false;sessionRef.current=null;deviceClientRef.current=null;stops.forEach(stop=>stop());};
+    return ()=>{alive=false;sessionRef.current=null;deviceClientRef.current=null;connectDeviceRef.current=null;stops.forEach(stop=>stop());};
     // Vault lifetime follows the account, never an open notebook.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[uid,active,db,appId]);
@@ -69,6 +79,7 @@ export function useNotebookVault({db,auth,user,appId,active}) {
   const identity=()=>({uid,appId});
   const prepare=async passphrase=>{
     if(!VAULT_ENABLED || recordRef.current)throw new Error('Este cofre já existe.');
+    await connectDeviceRef.current?.();
     const value=await createVault(passphrase,identity());if(uidRef.current!==uid)throw new Error('A conta mudou.');setPrepared(value);
   };
   const migrate=async()=>{

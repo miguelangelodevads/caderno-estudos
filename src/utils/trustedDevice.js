@@ -1,6 +1,7 @@
 import {signInWithCustomToken} from 'firebase/auth';
 import {wrapVaultForDevice,unlockVaultFromDevice} from './notebookCrypto.js';
-const API='http://127.0.0.1:5175';
+const LOCAL_TEST=import.meta.env.DEV&&import.meta.env.VITE_USE_FIREBASE_EMULATORS==='true';
+const API=LOCAL_TEST?'http://127.0.0.1:5175':import.meta.env.VITE_DEVICE_API_URL;
 const starting=new Map();
 const encoder=new TextEncoder();
 const base64=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
@@ -27,6 +28,7 @@ export async function createDeviceClient(auth,user){
  const pending=startDeviceClient(auth,user).finally(()=>starting.delete(id));starting.set(id,pending);return pending;
 }
 async function startDeviceClient(auth,user,retried=false){
+ if(!LOCAL_TEST){let url;try{url=new URL(API);}catch{throw new Error('Proteção dos aparelhos em preparação.');}if(url.protocol!=='https:')throw new Error('A confirmação do aparelho exige uma conexão segura.');}
  const uid=user.uid;let device=await item(`identity:${uid}`,'get');
  if(!device){const pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},false,['sign','verify']);device=await item(`identity:${uid}`,'ensure',{id:'d_'+crypto.randomUUID(),privateKey:pair.privateKey,publicKey:await crypto.subtle.exportKey('jwk',pair.publicKey)});}
  const request=async(path,body)=>{

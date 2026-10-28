@@ -647,7 +647,7 @@ export default function App() {
   if (mostrarLogin) {
     return (
       <>
-      {VAULT_ENABLED&&<p className='bg-amber-100 text-amber-900 text-center text-sm p-3'>Ambiente local de teste — use somente a conta fictícia de demonstração.</p>}
+      {VAULT_ENABLED&&import.meta.env.DEV&&import.meta.env.VITE_USE_FIREBASE_EMULATORS==='true'&&<p className='bg-amber-100 text-amber-900 text-center text-sm p-3'>Ambiente local de teste — use somente a conta fictícia de demonstração.</p>}
       <AreaLogin
         aoFazerLogin={fazerLoginComEmail}
         aoFazerCadastro={fazerCadastroComEmail}

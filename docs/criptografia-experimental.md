@@ -1,8 +1,10 @@
-# Criptografia de ponta a ponta — implementação experimental
+# Criptografia de ponta a ponta — cofre opcional
 
 Branch: `codex/end-to-end-encryption`, baseada na correção de segurança publicada.
-Integração funcional para teste local. Não publicar regras nem migrar contas reais
-sem uma revisão de liberação específica. Não houve ativação em produção.
+Liberação em produção autorizada pelo proprietário em 28/10/2026. A interface usa
+`VITE_E2EE_ENABLED=true` e um serviço HTTPS de dispositivos. Ativar a funcionalidade
+no build não cria cofres nem converte contas: cada usuário precisa escolher a proteção,
+guardar a recuperação e confirmar a migração dentro da própria conta.
 
 ## Implementado neste incremento
 
@@ -21,7 +23,8 @@ sem uma revisão de liberação específica. Não houve ativação em produção
 - Falhas interrompem o desbloqueio; não existe fallback para texto aberto.
 - Limite conservador de 700 KB de plaintext por envelope neste protótipo, para
   deixar margem à expansão de base64 e ao limite de documento do Firestore.
-  A futura migração deve identificar cadernos maiores antes de qualquer gravação.
+  A migração verifica todos os cadernos antes de gravar o registro do cofre e recusa
+  cadernos maiores, preservando o funcionamento da conta sem cofre.
 
 O App agora usa uma camada centralizada de leitura e transações criptografadas
 quando o cofre é ativado. Contas sem cofre preservam o funcionamento legado.
@@ -142,22 +145,39 @@ IndexedDB e CryptoKey não equivalem a proteção por hardware ou biometria: con
 é adequado em aparelhos pessoais protegidos. Não há rotação retroativa da chave de
 todos os cadernos neste incremento.
 
-Para produção, ainda será necessário um serviço autenticado HTTPS com identidade de
-servidor apropriada, limites de abuso persistentes, revisão da emissão de tokens e
-política de expiração/retenção. O servidor local e tokens do emulador nunca devem ser
-expostos publicamente. A restrição ao ambiente de teste continua obrigatória.
+Em produção, `/devices/*` no Worker existente substitui o servidor local. A identidade
+de servidor e seus segredos permanecem na Cloudflare, sem novos papéis IAM.
+As assinaturas Firebase são verificadas e uma consulta autenticada ao próprio Firebase
+confere conta desativada e `validSince` antes de cada operação. Tokens personalizados
+assinam somente UID e claim `deviceId`, com validade de emissão de cinco minutos.
+Desafios de 60 segundos são consumidos por transação Firestore, compartilhada entre
+instâncias. Um registro fixo por usuário limita a dez desafios pendentes e 60 por minuto,
+sem criar uma coleção ilimitada de nonces. Chaves abertas e anotações não passam pela API.
+Os registros de dispositivos e desafios permanecem até futura política explícita de
+retenção; desafios expirados são descartados na próxima emissão, sem uso de KV eventual.
+O servidor local e os tokens do emulador nunca devem ser expostos publicamente.
 
 O preview Vite bloqueia a entrega HTTP de `billing/private`, arquivos de ambiente,
 certificados e metadados Git. Backups e credenciais fictícias são lidos somente
 pelo sistema de arquivos local, nunca pelo navegador via URL.
 
-## Requisitos antes de produção
+## Validação e limites da liberação
 
-Revisão de segurança e usabilidade, desempenho em aparelhos reais, plano de rollout
-e compatibilidade com clientes antigos, tratamento de cadernos acima de 700 KB,
-restauração assistida de backup e política de retenção das cópias antigas. O código
-de migração deve permanecer inacessível a contas reais até essa decisão. O backup
-baixado pode ser decifrado com a recuperação, mas não há importação de backup na UI.
+107 testes automatizados passaram, assim como lint, compilação produtiva habilitada,
+45 verificações das regras legadas e 31 das regras de criptografia. A API HTTPS real
+foi exercitada com conta técnica aprovada: assinatura, emissão de sessão, exclusão
+da confiança e revogação; uma conta sem aprovação foi bloqueada. A interface completa,
+recuperação, edição, autosave e aparelhos independentes foram validados no ambiente local.
+Isso é validação interna, não auditoria criptográfica independente.
+
+Contas sem cofre continuam com o login atual e não dependem da API de aparelhos.
+Cadastrar um aparelho para um cofre exige login por senha nos últimos cinco minutos;
+quem recebe essa solicitação pode sair e entrar de novo antes de configurar/desbloquear.
+Cadernos acima de 700 KB exigem divisão prévia. O backup baixado pode ser decifrado com
+a recuperação, mas não há importação de backup na UI. Restauração assistida e retenção
+de cópias antigas continuam operações específicas, sem apagar backups automaticamente.
+Não desabilitar a flag nem restaurar uma interface anterior à criptografia depois de
+existirem cofres ativos: manter API e regras compatíveis e corrigir a versão adiante.
 
 ## Limites de privacidade que precisam ser comunicados
 
