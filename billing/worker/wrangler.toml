@@ -3,6 +3,10 @@ main = "src/index.js"
 compatibility_date = "2026-10-28"
 workers_dev = true
 
+[placement]
+# Firestore nam5: execute near its central-US replicas, not at each user's edge.
+region = "gcp:us-central1"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

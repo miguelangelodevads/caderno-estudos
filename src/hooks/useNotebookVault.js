@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {doc,collection,onSnapshot,getDoc,getDocs,runTransaction} from 'firebase/firestore';
+import {doc,collection,onSnapshot,getDocs,runTransaction} from 'firebase/firestore';
 import {createVault,unlockVault,recoverVault,changeVaultPassword,encryptNotebook,decryptNotebook} from '../utils/notebookCrypto.js';
 import {createNotebookGateway,createEncryptedDraftStorage} from '../utils/encryptedStorage.js';
 import {createDeviceClient} from '../utils/trustedDevice.js';
@@ -46,11 +46,11 @@ export function useNotebookVault({db,auth,user,appId,active}) {
     return client;
     })().catch(e=>{connecting=null;throw e;}));
     connectDeviceRef.current=connect;
-    (async()=>{
-    // Accounts without a vault keep their existing login and do not depend on the device API.
-    let needsDevice=true;
-    try{needsDevice=(await getDoc(ref())).exists();}catch(e){if(e.code!=='permission-denied')throw e;}
-    if(needsDevice)await connect();if(!alive)return;
+    // Start with the live server snapshot rather than reading the same document
+    // once and then subscribing again. Only a new device needs session enrollment.
+    let enrollmentAttempted=false;
+    const watchVault=()=>{
+    if(!alive)return;
     stops.push(onSnapshot(ref(),{includeMetadataChanges:true},snapshot=>{
       if(!alive || snapshot.metadata.fromCache)return;
       const data=snapshot.exists()?snapshot.data():null;
@@ -66,8 +66,15 @@ export function useNotebookVault({db,auth,user,appId,active}) {
         }
       }
       else {s.phase=data.phase;setStatus(data.phase==='active'?'ready':'migration');}
-    },()=>{if(alive){setStatus('error');setError('Não foi possível consultar o cofre. Confira a conexão.');}}));
-    })().catch(e=>{if(alive){setStatus('error');setError(e.message||'Não foi possível confirmar este aparelho.');}});
+    },error=>{
+      if(!alive)return;
+      if(error.code==='permission-denied'&&!enrollmentAttempted){
+        enrollmentAttempted=true;
+        connect().then(watchVault).catch(e=>{if(alive){setStatus('error');setError(e.message||'Não foi possível confirmar este aparelho.');}});
+      }else{setStatus('error');setError('Não foi possível consultar o cofre. Confira a conexão.');}
+    }));
+    };
+    watchVault();
     return ()=>{alive=false;sessionRef.current=null;deviceClientRef.current=null;connectDeviceRef.current=null;stops.forEach(stop=>stop());};
     // Vault lifetime follows the account, never an open notebook.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,7 +128,7 @@ export function useNotebookVault({db,auth,user,appId,active}) {
     const data=recordRef.current;if(!data)throw new Error('Cofre indisponível.');
     const key=await (recovery?recoverVault(data.cryptoRecord,secret.trim(),identity()):unlockVault(data.cryptoRecord,secret,identity()));
     if(!data.deviceControl){await runTransaction(db,async tx=>{const snap=await tx.get(ref());if(snap.data()?.cryptoRecord.keyId!==data.cryptoRecord.keyId)throw new Error('O cofre mudou.');tx.update(ref(),{deviceControl:true});});data.deviceControl=true;}
-    const client=deviceClientRef.current;if(!client)throw new Error('Confirme este aparelho novamente.');
+    const client=deviceClientRef.current||await connectDeviceRef.current?.();if(!client)throw new Error('Confirme este aparelho novamente.');
     if(remember)await client.trust(data.cryptoRecord,secret,recovery,label);
     else await client.forget();
     await install(key,data);setPanel(false);

@@ -24,8 +24,46 @@ async function fixture(){
         return {deviceId,challengeId:c.challengeId,payload,signature:base64url(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},pair.privateKey,await deviceProof(user.uid,deviceId,purpose,c.nonce,payload)))};
     };
     const session=async()=>{const result=await call('session',await prepare('session',{publicKey,label:'Meu aparelho'}));user.deviceId=deviceId;user.firebase.sign_in_provider='custom';return result;};
-    return {user,store,deviceId,call,prepare,session,advance:ms=>{clock+=ms;}};
+    const resumeProof=async(payload={issuedAt:clock},requestId=crypto.randomUUID())=>({deviceId,requestId,payload,
+        signature:base64url(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},pair.privateKey,await deviceProof(user.uid,deviceId,'resume',requestId,payload)))});
+    return {user,store,deviceId,call,prepare,session,resumeProof,advance:ms=>{clock+=ms;}};
 }
+test('fast resume releases only the encrypted grant and rejects replay across instances',async()=>{
+ const f=await fixture();await f.session();
+ const grant={keyId:'vault-key',envelope:{iv:'a'.repeat(16),ciphertext:'b'.repeat(64)},expiresAt:null};
+ f.store.docs.set('users/owner/devices/'+f.deviceId+'/grants/key',grant);
+ const proof=await f.resumeProof();
+ assert.deepEqual(await f.call('resume',proof),{grant});
+ await assert.rejects(f.call('resume',proof),{status:403});
+ const concurrent=await f.resumeProof();
+ const results=await Promise.allSettled([f.call('resume',concurrent),f.call('resume',concurrent)]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal(results.find(r=>r.status==='rejected').reason.status,403);
+});
+test('fast resume rejects revoked devices, unpaid accounts, wrong claims and forged proofs',async()=>{
+ const f=await fixture();await f.session();
+ const proof=await f.resumeProof();
+ await assert.rejects(f.call('resume',{...proof,payload:{issuedAt:proof.payload.issuedAt+1}}),{status:403});
+ f.user.deviceId='d_other';await assert.rejects(f.call('resume',proof),{status:401});f.user.deviceId=f.deviceId;
+ f.store.docs.set('access/owner',{active:false});await assert.rejects(f.call('resume',proof),{status:403});f.store.docs.set('access/owner',{active:true});
+ const path='users/owner/devices/'+f.deviceId;
+ f.store.docs.set(path,{...f.store.docs.get(path),active:false});await assert.rejects(f.call('resume',proof),{status:410});
+});
+test('fast resume clock window, missing grant and expired grant fail closed',async()=>{
+ const f=await fixture();await f.session();
+ const proof=await f.resumeProof();f.advance(120001);await assert.rejects(f.call('resume',proof),{status:422});
+ assert.deepEqual(await f.call('resume',await f.resumeProof()),{grant:null});
+ f.store.docs.set('users/owner/devices/'+f.deviceId+'/grants/key',{expiresAt:0,envelope:{ciphertext:'not returned'}});
+ assert.deepEqual(await f.call('resume',await f.resumeProof()),{grant:null});
+ const ahead=await f.resumeProof({issuedAt:proof.payload.issuedAt+240000});
+ await f.call('resume',ahead);f.advance(119998);await assert.rejects(f.call('resume',ahead),{status:403});
+});
+test('fast resume has a persistent per-account rate limit',async()=>{
+ const f=await fixture();await f.session();
+ for(let i=0;i<60;i++)await f.call('resume',await f.resumeProof());
+ await assert.rejects(f.call('resume',await f.resumeProof()),{status:429});
+ f.advance(60001);assert.deepEqual(await f.call('resume',await f.resumeProof()),{grant:null});
+});
 test('production devices: signed session, indefinite encrypted grant, forget and revoke',async()=>{
     const f=await fixture();assert.deepEqual(await f.call('status'),{hasVault:true});
     assert.match((await f.session()).customToken,/^signed:owner:d_/);

@@ -181,6 +181,29 @@ existirem cofres ativos: manter API e regras compatíveis e corrigir a versão a
 
 ## Limites de privacidade que precisam ser comunicados
 
+## Abertura em aparelho confiável — otimização de 28/10/2026
+
+O frontend inicia diretamente a assinatura online do cofre, sem o `getDoc` anterior
+que lia o mesmo documento duas vezes. Sessões Firebase que já contêm a identidade
+do aparelho são reutilizadas. Novos aparelhos ainda passam pela autorização completa.
+
+`POST /devices/resume` recebe prova ECDSA ligada ao UID, aparelho, UUID único e horário.
+Mantém consulta da conta atual no Firebase, aprovação, dispositivo ativo e concessão
+somente cifrada. Recibos transacionais de uso único cobrem toda a janela de relógio
+aceita; há limite persistente por conta. As quatro leituras de segurança usam um
+`batchGet` dentro da mesma transação, sem enfraquecer a revogação ou liberar chaves offline.
+Clientes antigos e relógios fora da janela preservam o protocolo anterior.
+
+O Worker usa `placement.region=gcp:us-central1`, próximo ao Firestore `nam5` já existente.
+O banco, os cadernos e as permissões não foram migrados. Na conta técnica em produção,
+o caminho antigo desafio+concessão levou 10.228 ms; o novo, após ajustar a localização,
+levou 1.598, 1.876 e 1.743 ms. As medições exercitam a resposta sem concessão da conta
+técnica e os bloqueios de repetição/revogação, sem alterar cadernos. Não são medições
+da abertura completa no aparelho do proprietário, que também inclui rede, Firebase
+e renderização. 121 testes, lint e build habilitado passaram nesta atualização.
+
+## Limites de privacidade que precisam ser comunicados
+
 - IDs, quantidade/tamanho dos documentos, horários e dados de conta/pagamento
   continuam observáveis. Pagamento e autenticação não são escondidos pela criptografia.
 - Cópias antigas, backups e rascunhos em texto aberto não desaparecem ao cifrar

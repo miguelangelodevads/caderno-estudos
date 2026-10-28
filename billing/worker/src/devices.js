@@ -1,5 +1,6 @@
 import {HttpError,base64url,unbase64,verifyDeviceUser,createDeviceToken} from './auth.js';
 import {isAccessActive} from './payments.js';
+import {resumeDevice} from './deviceResume.js';
 
 const encoder=new TextEncoder();
 const purposes=['session','trust','grant','forget','revoke'];
@@ -18,6 +19,11 @@ export async function handleDevices(request,env,store,body,dependencies={}) {
     const user=await (dependencies.verifyDeviceUser||verifyDeviceUser)(token,env,dependencies.fetcher||fetch,now);
     const root=`users/${user.uid}/`, vaultPath=root+'security/vault', noncePath=root+'security/deviceChallenges';
     const path=new URL(request.url).pathname.replace('/devices/','');
+    if(path==='resume') {
+        if(request.method!=='POST')fail(405,'Método não permitido.');
+        if(!body||!validId(body.deviceId))fail(400,'Dispositivo inválido.');
+        return resumeDevice(user,body,store,now,deviceProof);
+    }
     const access=await store.get('access/'+user.uid);
     if(!isAccessActive(access?.data))fail(403,'Acesso à conta indisponível.');
     if(path==='status') {

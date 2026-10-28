@@ -52,12 +52,22 @@ export class Firestore {
         const document = await this.call('/' + safe + (transaction ? '?transaction=' + encodeURIComponent(transaction) : ''));
         return document ? {data:decodeFields(document.fields || {}), updateTime:document.updateTime} : null;
     }
+    async getMany(paths,transaction) {
+        const names=paths.map(path=>this.name+'/'+this.prefix+path);
+        const result=await this.call(':batchGet',{method:'POST',body:JSON.stringify({documents:names,...(transaction?{transaction}:{})})});
+        if(!Array.isArray(result))throw new HttpError(503,'Resposta de sincronização inválida.');
+        const docs=new Map(result.filter(entry=>entry.found).map(entry=>[entry.found.name,{data:decodeFields(entry.found.fields||{}),updateTime:entry.found.updateTime}]));
+        const returned=new Set(result.map(entry=>entry.found?.name||entry.missing));
+        if(names.some(name=>!returned.has(name)))throw new HttpError(503,'Resposta de sincronização incompleta.');
+        return names.map(name=>docs.get(name)||null);
+    }
     async atomic(action) {
         for (let attempt = 0; attempt < 3; attempt++) {
             const transaction = (await this.call(':beginTransaction', {method:'POST', body:JSON.stringify({options:{readWrite:{}}})})).transaction;
             const writes = [];
             const tx = {
                 get:path => this.get(path, transaction),
+                getMany:paths => this.getMany(paths,transaction),
                 put:(path, data, previous) => writes.push({
                     update:{name:this.name + '/' + this.prefix + path, fields:encodeFields(data)},
                     currentDocument:previous ? {updateTime:previous.updateTime} : {exists:false}

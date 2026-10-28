@@ -60,7 +60,19 @@ async function startDeviceClient(auth,user,retried=false){
   },
   async restore(record){
    const stored=await item(localName,'get');if(!stored?.key||stored.keyId!==record.keyId)return null;
-   try{const grant=await call('grant');return await unlockVaultFromDevice(record,grant,stored.key,{uid,appId:record.appId},device.id);}
+   try{
+    let grant;
+    if(!LOCAL_TEST){
+     const requestId=crypto.randomUUID(),payload={issuedAt:Date.now()};
+     const hash=await crypto.subtle.digest('SHA-256',encoder.encode(JSON.stringify(payload)));
+     const message=encoder.encode(JSON.stringify(['caderno-device-v1',uid,device.id,'resume',requestId,base64(hash)]));
+     const signature=base64(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},device.privateKey,message));
+     try{grant=(await request('/resume',{deviceId:device.id,requestId,payload,signature})).grant;}
+     catch(e){if(![404,405,422].includes(e.status))throw e;grant=await call('grant');}
+    }else grant=await call('grant');
+    if(!grant){await item(localName,'delete');return null;}
+    return await unlockVaultFromDevice(record,grant,stored.key,{uid,appId:record.appId},device.id);
+   }
    catch(e){if([404,410].includes(e.status))await item(localName,'delete');if(e.status===410)throw e;return null;}
   },
   async forget(){await item(localName,'delete');await call('forget').catch(()=>{});},
