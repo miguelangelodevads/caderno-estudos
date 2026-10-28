@@ -138,7 +138,7 @@
   .auth-screen, .payment-screen { overflow-wrap: anywhere; }
   .app-install-prompt { bottom: max(16px, env(safe-area-inset-bottom)); }
   .app-install-prompt button { min-width: 44px; min-height: 44px; }
-  .notebook-shell[data-keyboard-open=true] ~ .app-install-prompt { display: none; }
+  body:has(.notebook-shell[data-keyboard-open=true]) .app-install-prompt { display: none; }
   button:focus-visible, input:focus-visible { outline-offset: 3px; }
 }
 

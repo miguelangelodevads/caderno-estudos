@@ -130,42 +130,6 @@ export default function App() {
     onCloseMenu: () => setIsMobileMenuOpen(false),
   });
 
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [isIos, setIsIos] = useState(() => {
-    if (typeof navigator === "undefined") return false;
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  });
-
-  useEffect(() => {
-    // Capturar o evento de instalação (Android/Chrome)
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallPrompt(true);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener(
-        "beforeinstallprompt",
-        handleBeforeInstallPrompt,
-      );
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === "accepted") {
-        setDeferredPrompt(null);
-        setShowInstallPrompt(false);
-      }
-    }
-  };
-
   const fazerLoginComEmail = async (email, senha) => {
     try {
       await signInWithEmailAndPassword(auth, email, senha);
@@ -1164,62 +1128,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* PWA Install Prompt */}
-      {showInstallPrompt && (
-        <div className='app-install-prompt fixed bottom-0 left-0 right-0 p-4 md:p-6 z-100 flex justify-center animate-in slide-in-from-bottom-10 fade-in duration-300'>
-          <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 max-w-lg w-full'>
-            <div className='bg-blue-100 p-3 rounded-xl shrink-0'>
-              <BookOpen className='w-6 h-6 text-blue-600' />
-            </div>
-            <div className='flex-1 text-center sm:text-left'>
-              <h3 className='font-bold text-slate-800 text-lg'>Instalar App</h3>
-              <p className='text-slate-600 text-sm'>
-                Adicione o Caderno de Estudos ao ecrã inicial do seu telemóvel
-                para um acesso mais rápido!
-              </p>
-            </div>
-            <div className='flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0'>
-              <button
-                onClick={() => setShowInstallPrompt(false)}
-                className='flex-1 sm:flex-none px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors'
-              >
-                Agora não
-              </button>
-              <button
-                onClick={handleInstallClick}
-                className='flex-1 sm:flex-none px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors'
-              >
-                Instalar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* iOS Instructions (since iOS doesn't support the prompt API properly) */}
-      {isIos && !window.matchMedia("(display-mode: standalone)").matches && (
-        <div className='app-install-prompt fixed bottom-0 left-0 right-0 p-4 z-100 md:hidden'>
-          <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl rounded-xl p-3 flex items-start gap-3 text-sm'>
-            <div className='mt-0.5 text-blue-500'>
-              <Bookmark className='w-5 h-5' />
-            </div>
-            <p className='text-slate-700 leading-tight'>
-              Para instalar no iOS: toque em{" "}
-              <strong className='text-slate-900'>Partilhar</strong> e depois em{" "}
-              <strong className='text-slate-900'>
-                "Adicionar ao Ecrã Principal"
-              </strong>
-              .
-            </p>
-            <button
-              onClick={() => setIsIos(false)}
-              className='p-1 text-slate-400 shrink-0 ml-auto'
-            >
-              <X className='w-4 h-4' />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
