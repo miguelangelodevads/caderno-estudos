@@ -4,15 +4,16 @@ import { TEXT_COLORS } from "../utils/textColor.js";
 
 const keepSelection = (event) => event.preventDefault();
 
-export default function MobileTextColors({ activeColor, insideCode, onApplyColor, saveStatus, onRetry }) {
+export default function MobileTextColors({ activeColor, insideCode, onApplyColor, saveStatus, onRetry, actions }) {
   const [open, setOpen] = useState(false);
   return <div className='note-color-toolbar-mobile'>
     <div className='mobile-color-toolbar-row'><button type='button' className='mobile-color-toggle' aria-label='Abrir cores do texto'
       aria-expanded={open} onPointerDown={keepSelection} onClick={() => setOpen((current) => !current)}>
-      <Palette size={18} /> <span>Cor do texto</span>
+      <Palette size={18} /> <span className='mobile-color-label'>Cor do texto</span>
       <span className='mobile-current-color' style={{ backgroundColor: activeColor }} />
       <ChevronDown size={16} className={open ? "rotate-180" : ""} />
     </button>
+    {actions}
     <span role='status' aria-live='polite' className='mobile-note-save-status'>
       {{ idle: "Automático", pending: "Salvando…", saving: "Salvando…", saved: "Salvo", error: "Falha ao salvar" }[saveStatus]}
     </span>

@@ -51,7 +51,7 @@ export function useMobileNotebookLayout({ active, menuOpen, onCloseMenu, content
       }
       const bounds = paper.getBoundingClientRect();
       const toolbar = element.closest(".note-editor-wrap")?.querySelector(".note-color-toolbar-mobile");
-      const topPadding = (toolbar?.getBoundingClientRect().height || 0) + 12;
+      const topPadding = (toolbar && getComputedStyle(toolbar).position === "sticky" ? toolbar.getBoundingClientRect().height : 0) + 12;
       if (rect.bottom > bounds.bottom - 20) paper.scrollTop += rect.bottom - bounds.bottom + 20;
       if (rect.top < bounds.top + topPadding) paper.scrollTop -= bounds.top + topPadding - rect.top;
     };

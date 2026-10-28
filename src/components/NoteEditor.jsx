@@ -9,7 +9,7 @@ import { createAutosave } from "../utils/autosave.js";
 
 const ContentEditable = ContentEditableModule.default || ContentEditableModule;
 
-export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, ...props }) {
+export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, mobileActions, ...props }) {
   const changeRef = useRef(onChange);
   const editorRef = useRef(null);
   const savedRangeRef = useRef(null);
@@ -158,7 +158,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
 
   return <div className='note-editor-wrap min-w-0'>
     <MobileTextColors activeColor={activeColor} insideCode={insideCode} onApplyColor={applyColor}
-      saveStatus={saveStatus} onRetry={() => autosaveRef.current?.flush()} />
+      actions={mobileActions} saveStatus={saveStatus} onRetry={() => autosaveRef.current?.flush()} />
     <div role='toolbar' aria-label='Cores do texto' className='note-color-toolbar-desktop flex items-center flex-wrap gap-2 mb-2 font-sans text-xs text-slate-500'>
       <span>Cor do texto</span>
       {TEXT_COLORS.map((color) => <button key={color.value} type='button'
