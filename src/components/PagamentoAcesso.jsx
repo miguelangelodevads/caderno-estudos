@@ -7,7 +7,7 @@ const SUPPORT_WHATSAPP =
 
 export default function PagamentoAcesso({ user, onLogout }) {
   return (
-    <div className='min-h-screen bg-[#efebe1] flex items-center justify-center p-4 text-stone-800'>
+    <div className='payment-screen min-h-screen bg-[#efebe1] flex items-center justify-center p-4 text-stone-800'>
       <div className='bg-[#f8f5ee] w-full max-w-lg rounded-2xl shadow-xl p-6 sm:p-8 border border-stone-200 text-center'>
         <div className='bg-stone-800 p-3 rounded-full w-fit mx-auto mb-4'>
           <QrCode className='w-8 h-8 text-[#efebe1]' />

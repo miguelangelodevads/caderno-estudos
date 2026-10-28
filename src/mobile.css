@@ -1,0 +1,137 @@
+/* Regras móveis isoladas: os estilos existentes do desktop continuam vigentes. */
+.note-color-toolbar-mobile,
+.mobile-drawer-close { display: none; }
+
+@media (max-width: 767px), (pointer: coarse) and (max-width: 1023px) {
+  .notebook-page { min-height: 0; height: 100dvh; overflow: hidden; }
+  .notebook-shell {
+    height: var(--mobile-viewport-height, 100dvh);
+    min-height: 0;
+    max-width: 100%;
+    flex-direction: column;
+  }
+  .notebook-main { min-width: 0; min-height: 0; }
+  .mobile-topbar {
+    display: flex;
+    gap: 8px;
+    padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+  }
+  .mobile-topbar > div { min-width: 0; gap: 6px; }
+  .mobile-topbar button { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+  .mobile-topbar .mobile-notebook-name { min-width: 0; max-width: min(56vw, 260px); font-size: 15px; }
+  .notebook-shell[data-keyboard-open=true] .mobile-topbar { display: none; }
+  .mobile-drawer-backdrop { display: block; z-index: 55; }
+  .notebook-sidebar {
+    position: fixed;
+    inset: 0 auto auto 0;
+    width: min(88vw, 360px);
+    max-width: 360px;
+    height: var(--mobile-viewport-height, 100dvh);
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 60;
+    translate: 0 0;
+    transform: translateX(-100%);
+    box-shadow: 10px 0 35px #1e293b30;
+  }
+  .notebook-shell[data-mobile-menu-open=true] .notebook-sidebar { transform: translateX(0); }
+  .drawer-heading { position: relative; height: auto; padding: 16px 58px 16px 16px; }
+  .desktop-back-button { display: none; }
+  .mobile-drawer-close {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  .notebook-topic-list { min-height: 0; overscroll-behavior-y: contain; padding: 12px; }
+  .notebook-sidebar button { min-width: 44px; min-height: 44px; touch-action: manipulation; }
+  .notebook-sidebar button svg { width: 18px; height: 18px; }
+  .notebook-topic-select { min-width: 0; text-align: left; }
+  .notebook-sidebar input { min-height: 44px; font-size: 16px; }
+  .notebook-topic-header {
+    height: auto;
+    min-height: 72px;
+    padding: 10px max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .topic-heading { min-width: 0; flex: 1; }
+  .topic-heading h2 { font-size: 20px; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .topic-heading p { font-size: 11px; margin-top: 3px; }
+  .add-title-button { min-height: 44px; width: auto; max-width: 50%; padding: 8px 10px; font-size: 13px; gap: 5px; }
+  .notebook-shell[data-keyboard-open=true] .notebook-topic-header { min-height: 52px; padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px; }
+  .notebook-shell[data-keyboard-open=true] .topic-heading p { display: none; }
+  .notebook-shell[data-keyboard-open=true] .topic-heading h2 { display: block; -webkit-line-clamp: unset; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .notebook-paper { min-height: 0; min-width: 0; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; scroll-padding: 64px 0 20px; }
+  .notebook-paper-content {
+    min-width: 0;
+    padding: 18px max(12px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .paper-margin { left: 8px; }
+  .notebook-paper-content > .paper-notes { max-width: 100%; min-width: 0; padding-left: 0; }
+  .note-heading-row { flex-wrap: wrap; gap: 6px; }
+  .note-heading-row h3 { min-width: min(120px, 100%); flex: 1; overflow-wrap: anywhere; }
+  .note-actions { margin-left: auto; opacity: 1; }
+  .note-actions button { min-width: 44px; min-height: 44px; display: grid; place-items: center; touch-action: manipulation; }
+  .note-actions svg { width: 16px; height: 16px; }
+  .note-text { min-width: 0; overflow-wrap: anywhere; scroll-margin-top: 64px; }
+  .note-text .code-block { max-width: 100%; padding-right: 12px; padding-left: 12px; font-size: 15px; }
+  .note-title-input { font-size: 20px; min-height: 44px; }
+  .note-color-toolbar-desktop { display: none; }
+  .note-color-toolbar-mobile {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    max-width: 100%;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    background: #f0e9da;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+  .mobile-color-toggle {
+    display: flex; align-items: center; gap: 8px;
+    min-height: 44px; padding: 8px 10px; font-size: 13px;
+    color: #475569; border: 1px solid #cbd5e1; border-radius: 10px; background: #faf8f0;
+    touch-action: manipulation;
+  }
+  .mobile-color-toolbar-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .mobile-note-save-status { margin-left: auto; font-size: 11px; line-height: 1.3; color: #64748b; }
+  .mobile-save-retry { min-width: 44px; min-height: 44px; font-size: 12px; color: #b91c1c; text-decoration: underline; }
+  .mobile-current-color { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1px #0002; }
+  .mobile-color-panel { display: flex; align-items: center; gap: 4px; max-width: 100%; padding: 6px 4px; overflow-x: auto; overscroll-behavior-x: contain; }
+  .mobile-color-swatch { flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; touch-action: manipulation; }
+  .mobile-color-swatch span { width: 26px; height: 26px; border-radius: 50%; box-shadow: 0 0 0 1px #0002; }
+  .mobile-color-swatch[aria-pressed=true] { outline: 2px solid #64748b; outline-offset: -2px; }
+  .mobile-color-swatch:disabled { opacity: .3; }
+  .mobile-custom-color { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 8px; font-size: 12px; }
+  .mobile-custom-color input { width: 44px; height: 44px; border: 0; padding: 4px; background: transparent; }
+  .mobile-color-hint { padding: 0 10px 8px; font-size: 12px; line-height: 1.4; color: #64748b; }
+  .notebook-shelf, .auth-screen, .payment-screen { min-height: 100dvh; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  .notebook-shelf button { min-width: 44px; min-height: 44px; touch-action: manipulation; }
+  .notebook-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+  .notebook-card { min-width: 0; }
+  .notebook-card > button { opacity: 1; }
+  .notebook-cover-label { margin: 24px 10px 0; padding: 10px 8px; max-height: 100px; }
+  .notebook-cover-label h2 { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .notebook-cover-summary { right: 10px; bottom: 12px; font-size: 11px; }
+  .auth-card { padding: 24px; }
+  .auth-screen input, .auth-screen button, .payment-screen button, .payment-screen a { min-height: 44px; }
+  input[type=text], input[type=email], input[type=password], textarea, select { font-size: 16px; }
+  .auth-screen button, .payment-screen a { overflow-wrap: anywhere; }
+  .auth-screen, .payment-screen { overflow-wrap: anywhere; }
+  .app-install-prompt { bottom: max(16px, env(safe-area-inset-bottom)); }
+  .app-install-prompt button { min-width: 44px; min-height: 44px; }
+  .notebook-shell[data-keyboard-open=true] ~ .app-install-prompt { display: none; }
+  button:focus-visible, input:focus-visible { outline-offset: 3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notebook-sidebar { transition: none; }
+}

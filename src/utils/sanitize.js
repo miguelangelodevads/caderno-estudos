@@ -34,6 +34,7 @@ export function sanitizeHtmlContent(input) {
       "ol",
       "li",
       "span",
+      "font",
       "mark",
       "a",
       "pre",

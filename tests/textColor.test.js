@@ -20,3 +20,7 @@ test("colar texto de fora não importa nem mesmo marcadores de cor do aplicativo
   assert.equal(html, "<span>Texto copiado</span>");
   assert.doesNotMatch(html, /style=|data-text-color/);
 });
+
+test("fontes antigas do clipboard não mudam a aparência do texto no celular", () => {
+  assert.equal(formatNotePaste('Texto comum', '<font face="Arial" color="#ff0000" size="7">Texto comum</font>'), '<span>Texto comum</span>');
+});

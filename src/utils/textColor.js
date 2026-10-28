@@ -23,12 +23,18 @@ export function normalizeTextColor(value) {
 }
 
 export function markEditorTextColors(editor, activeColor) {
-  editor.querySelectorAll("[style]").forEach((element) => {
+  editor.querySelectorAll("[style], font[color]").forEach((element) => {
     if (element.closest("pre.code-block")) return;
-    const color = normalizeTextColor(element.style.color);
+    const color = normalizeTextColor(element.style.color || element.getAttribute("color"));
     const wasColored = normalizeTextColor(element.dataset.textColor);
     if (color && (color === activeColor || wasColored)) {
       element.dataset.textColor = color;
+      if (element.tagName === "FONT") {
+        element.style.cssText = `color: ${color};`;
+        element.removeAttribute("color");
+        element.removeAttribute("face");
+        element.removeAttribute("size");
+      }
     } else if (wasColored && !color) {
       element.removeAttribute("data-text-color");
     }

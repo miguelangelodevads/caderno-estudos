@@ -4,17 +4,50 @@ import { createCodeBlock } from "../utils/codeFormatting.js";
 import { formatNotePaste, normalizeNoteHtml } from "../utils/noteContent.js";
 import { sanitizeHtmlContent } from "../utils/sanitize.js";
 import { TEXT_COLORS, markEditorTextColors, normalizeTextColor } from "../utils/textColor.js";
+import MobileTextColors from "./MobileTextColors.jsx";
+import { createAutosave } from "../utils/autosave.js";
 
 const ContentEditable = ContentEditableModule.default || ContentEditableModule;
 
-export default function NoteEditor({ html, onChange, autoFocus = false, ...props }) {
+export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, ...props }) {
   const changeRef = useRef(onChange);
   const editorRef = useRef(null);
   const savedRangeRef = useRef(null);
   const colorRef = useRef(TEXT_COLORS[0].value);
   const [activeColor, setActiveColor] = useState(TEXT_COLORS[0].value);
   const [insideCode, setInsideCode] = useState(false);
+  const [restoredDraft] = useState(() => {
+    try { return storageKey ? localStorage.getItem(storageKey) : null; } catch { return null; }
+  });
+  const [draftHtml, setDraftHtml] = useState(restoredDraft);
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const latestHtmlRef = useRef(restoredDraft ?? html);
+  const autosaveRef = useRef(null);
+  // Não substitui o que está sendo digitado por uma confirmação antiga da nuvem.
+  if (draftHtml !== null && draftHtml === html && saveStatus === "saved") setDraftHtml(null);
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
+  useEffect(() => {
+    const autosave = createAutosave(async (value) => {
+      await changeRef.current(value);
+      if (storageKey && latestHtmlRef.current === value) {
+        try { localStorage.removeItem(storageKey); } catch { /* A nuvem continua disponível. */ }
+      }
+    }, setSaveStatus);
+    autosaveRef.current = autosave;
+    if (restoredDraft !== null) {
+      const normalized = normalizeNoteHtml(restoredDraft);
+      latestHtmlRef.current = normalized;
+      autosave.schedule(normalized);
+    }
+    const flush = () => { autosave.flush(); };
+    window.addEventListener("online", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("online", flush);
+      window.removeEventListener("pagehide", flush);
+      autosave.close();
+    };
+  }, [storageKey, restoredDraft]);
   useEffect(() => {
     const rememberSelection = () => {
       const editor = editorRef.current;
@@ -40,7 +73,13 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
   }, [autoFocus]);
   const emitChange = (editor) => {
     markEditorTextColors(editor, colorRef.current);
-    changeRef.current(normalizeNoteHtml(editor.innerHTML));
+    const normalized = normalizeNoteHtml(editor.innerHTML);
+    latestHtmlRef.current = normalized;
+    if (storageKey) {
+      try { localStorage.setItem(storageKey, normalized); } catch { /* O salvamento na nuvem continua. */ }
+    }
+    setDraftHtml(normalized);
+    autosaveRef.current?.schedule(normalized);
   };
   const applyColor = (value) => {
     const color = normalizeTextColor(value);
@@ -114,10 +153,13 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
       block.outerHTML = sanitizeHtmlContent(createCodeBlock(text, block.dataset.language));
     });
     if (editor.innerHTML !== previous) emitChange(editor);
+    autosaveRef.current?.flush();
   };
 
   return <div className='note-editor-wrap min-w-0'>
-    <div role='toolbar' aria-label='Cores do texto' className='flex items-center flex-wrap gap-2 mb-2 font-sans text-xs text-slate-500'>
+    <MobileTextColors activeColor={activeColor} insideCode={insideCode} onApplyColor={applyColor}
+      saveStatus={saveStatus} onRetry={() => autosaveRef.current?.flush()} />
+    <div role='toolbar' aria-label='Cores do texto' className='note-color-toolbar-desktop flex items-center flex-wrap gap-2 mb-2 font-sans text-xs text-slate-500'>
       <span>Cor do texto</span>
       {TEXT_COLORS.map((color) => <button key={color.value} type='button'
         aria-label={`Cor ${color.name.toLowerCase()}`} aria-pressed={activeColor === color.value}
@@ -133,8 +175,9 @@ export default function NoteEditor({ html, onChange, autoFocus = false, ...props
           className='w-6 h-6 cursor-pointer border-0 bg-transparent p-0 disabled:opacity-30' />
       </label>
     </div>
-    <ContentEditable {...props} innerRef={editorRef} html={normalizeNoteHtml(html, { upgradeCodeBlocks: true })}
+    <ContentEditable {...props} innerRef={editorRef} html={normalizeNoteHtml(draftHtml ?? html, { upgradeCodeBlocks: true })}
       onChange={() => emitChange(editorRef.current)}
-      onPaste={handlePaste} onBlur={handleBlur} spellCheck={false} />
+      onPaste={handlePaste} onBlur={handleBlur} spellCheck={false}
+      role='textbox' aria-multiline='true' autoCapitalize='off' autoCorrect='off' />
   </div>;
 }

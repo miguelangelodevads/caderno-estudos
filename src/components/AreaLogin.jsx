@@ -16,8 +16,8 @@ export default function AreaLogin({ aoFazerLogin, aoFazerCadastro }) {
   };
 
   return (
-    <div className='min-h-screen bg-[#efebe1] flex flex-col justify-center items-center p-4'>
-      <div className='bg-[#f8f5ee] w-full max-w-md rounded-2xl shadow-xl p-8 border border-stone-200'>
+    <div className='auth-screen min-h-screen bg-[#efebe1] flex flex-col justify-center items-center p-4'>
+      <div className='auth-card bg-[#f8f5ee] w-full max-w-md rounded-2xl shadow-xl p-8 border border-stone-200'>
         <div className='flex flex-col items-center justify-center mb-8'>
           <div className='bg-stone-800 p-3 rounded-full mb-4'>
             <BookOpen className='w-8 h-8 text-[#efebe1]' />
@@ -34,13 +34,14 @@ export default function AreaLogin({ aoFazerLogin, aoFazerCadastro }) {
 
         <form onSubmit={lidarComEnvio} className='space-y-5'>
           <div>
-            <label className='block text-sm font-medium text-stone-600 mb-1'>
+            <label htmlFor='account-email' className='block text-sm font-medium text-stone-600 mb-1'>
               E-mail
             </label>
             <div className='relative'>
               <Mail className='absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400' />
               <input
                 type='email'
+                id='account-email' autoComplete='email' inputMode='email' enterKeyHint='next' autoCapitalize='off' autoCorrect='off'
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -51,13 +52,14 @@ export default function AreaLogin({ aoFazerLogin, aoFazerCadastro }) {
           </div>
 
           <div>
-            <label className='block text-sm font-medium text-stone-600 mb-1'>
+            <label htmlFor='account-password' className='block text-sm font-medium text-stone-600 mb-1'>
               Senha
             </label>
             <div className='relative'>
               <Lock className='absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400' />
               <input
                 type='password'
+                id='account-password' autoComplete={isRegistering ? "new-password" : "current-password"} enterKeyHint='done'
                 required
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}

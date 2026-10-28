@@ -46,6 +46,7 @@ import AreaLogin from "./components/AreaLogin";
 import PagamentoAcesso from "./components/PagamentoAcesso";
 import { sanitizeHtmlContent } from "./utils/sanitize.js";
 import { subscribeOnResume } from "./utils/resumeSubscription.js";
+import { useMobileNotebookLayout } from "./hooks/useMobileNotebookLayout.js";
 
 const firebaseConfig =
   typeof __firebase_config !== "undefined" && __firebase_config
@@ -114,6 +115,12 @@ export default function App() {
 
   const [mostrarLogin, setMostrarLogin] = useState(true);
   const [acessoLiberado, setAcessoLiberado] = useState(false);
+  const { isMobile: isMobileLayout, shellRef, drawerRef, menuButtonRef } = useMobileNotebookLayout({
+    active: activeNotebookId !== null && !loading && !mostrarLogin && acessoLiberado,
+    menuOpen: isMobileMenuOpen,
+    contentKey: activeTopicId,
+    onCloseMenu: () => setIsMobileMenuOpen(false),
+  });
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -397,6 +404,7 @@ export default function App() {
         updatedNotebook,
       );
       setActiveTopicId(newTopic.id);
+      setIsMobileMenuOpen(false);
       setIsAddingTopic(false);
       setNewTopicTitle("");
     } catch (error) {
@@ -571,14 +579,17 @@ export default function App() {
   };
 
   const autoSaveNoteContent = async (noteId, newHtml) => {
-    if (!activeNotebookId || !activeTopicId || !user || !db) return;
+    if (!activeNotebookId || !activeTopicId || !user || !db) throw new Error("A anotação não está disponível para salvar.");
     const safeHtml = sanitizeHtmlContent(newHtml);
     const notebookRef = doc(db, "artifacts", appId, "users", user.uid, "notebooks", activeNotebookId);
     try {
       await runTransaction(db, async (transaction) => {
         const snapshot = await transaction.get(notebookRef);
-        if (!snapshot.exists()) return;
+        if (!snapshot.exists()) throw new Error("Caderno não encontrado.");
         const notebook = snapshot.data();
+        if (!notebook.topics?.find((topic) => topic.id === activeTopicId)?.notes?.some((note) => note.id === noteId)) {
+          throw new Error("Anotação não encontrada.");
+        }
         const topics = notebook.topics.map((topic) => topic.id === activeTopicId
           ? { ...topic, notes: (topic.notes || []).map((note) => note.id === noteId
             ? { ...note, content: safeHtml } : note) }
@@ -587,6 +598,7 @@ export default function App() {
       });
     } catch (error) {
       console.error("Erro ao auto-salvar anotação:", error);
+      throw error;
     }
   };
 
@@ -644,7 +656,7 @@ export default function App() {
   // --- Renderização da Estante (Home) ---
   if (activeNotebookId === null) {
     return (
-      <div className='min-h-screen bg-[#efebe1] p-4 sm:p-8 font-sans text-slate-800'>
+      <div className='notebook-shelf min-h-screen bg-[#efebe1] p-4 sm:p-8 font-sans text-slate-800'>
         <div className='max-w-6xl mx-auto'>
           {/* Cabeçalho da Estante - Responsivo */}
           <header className='mb-8 sm:mb-12 flex flex-col md:flex-row md:items-center justify-between border-b-2 border-stone-300 pb-4 gap-4'>
@@ -700,6 +712,8 @@ export default function App() {
               <input
                 type='text'
                 placeholder='Nome da Matéria (ex: Matemática)'
+                enterKeyHint='done'
+                onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); handleAddNotebook(); } }}
                 value={newNotebookTitle}
                 onChange={(e) => setNewNotebookTitle(e.target.value)}
                 className='w-full border-2 border-stone-200 rounded-lg p-3 mb-4 outline-none focus:border-stone-500 font-medium'
@@ -710,9 +724,10 @@ export default function App() {
                   Cor da Capa:
                 </p>
                 <div className='flex gap-2 flex-wrap'>
-                  {COLORS.map((c) => (
+                  {COLORS.map((c, index) => (
                     <button
                       key={c}
+                      aria-label={`Cor de capa ${index + 1}`}
                       onClick={() => setNewNotebookColor(c)}
                       className={`w-8 h-8 rounded-full shadow-sm ${c} ${newNotebookColor === c ? "ring-4 ring-offset-2 ring-stone-300 scale-110" : "hover:scale-110 transition-transform"}`}
                     />
@@ -743,14 +758,18 @@ export default function App() {
             </div>
           )}
 
-          <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8'>
+          <div className='notebook-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8'>
             {notebooks.map((notebook) => (
               <div
                 key={notebook.id}
-                className='relative group perspective-1000 w-full max-w-70 mx-auto sm:max-w-none'
+                className='notebook-card relative group perspective-1000 w-full max-w-70 mx-auto sm:max-w-none'
               >
                 <div
                   onClick={() => openNotebook(notebook.id)}
+                  role='button' tabIndex={0} aria-label={`Abrir caderno ${notebook.title}`}
+                  onKeyDown={(event) => {
+                    if (["Enter", " "].includes(event.key)) { event.preventDefault(); openNotebook(notebook.id); }
+                  }}
                   className={`w-full aspect-3/4 ${notebook.coverColor} rounded-r-2xl rounded-l-sm shadow-xl cursor-pointer transform transition-all duration-300 group-hover:-translate-y-2 group-hover:rotate-1 flex flex-col`}
                   style={{
                     boxShadow:
@@ -758,7 +777,7 @@ export default function App() {
                     backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.15'/%3E%3C/svg%3E")`,
                   }}
                 >
-                  <div className='mt-8 sm:mt-12 mx-4 sm:mx-6 bg-[#f8f5ee] p-3 sm:p-4 rounded-sm shadow-sm border border-stone-200 flex-1 max-h-24 sm:max-h-32 flex flex-col justify-center items-center text-center'>
+                  <div className='notebook-cover-label mt-8 sm:mt-12 mx-4 sm:mx-6 bg-[#f8f5ee] p-3 sm:p-4 rounded-sm shadow-sm border border-stone-200 flex-1 max-h-24 sm:max-h-32 flex flex-col justify-center items-center text-center'>
                     <p className='text-[10px] sm:text-xs text-stone-500 font-mono uppercase tracking-widest mb-1 border-b border-stone-300 w-full pb-1'>
                       Matéria
                     </p>
@@ -766,7 +785,7 @@ export default function App() {
                       {notebook.title}
                     </h2>
                   </div>
-                  <div className='absolute bottom-4 sm:bottom-6 right-4 sm:right-6 text-white/70 text-xs sm:text-sm font-mono flex items-center gap-1 sm:gap-2'>
+                  <div className='notebook-cover-summary absolute bottom-4 sm:bottom-6 right-4 sm:right-6 text-white/70 text-xs sm:text-sm font-mono flex items-center gap-1 sm:gap-2'>
                     <BookOpen className='w-3 h-3 sm:w-4 sm:h-4' />{" "}
                     {notebook.topics?.length || 0} assuntos
                   </div>
@@ -799,17 +818,20 @@ export default function App() {
 
   // --- Renderização do Caderno Aberto (Interior) ---
   return (
-    <div className='min-h-screen bg-[#e8e0d0] font-sans selection:bg-blue-200 text-slate-800 flex justify-center items-center'>
+    <div className='notebook-page min-h-screen bg-[#e8e0d0] font-sans selection:bg-blue-200 text-slate-800 flex justify-center items-center'>
       <div
-        className='w-full h-dvh flex flex-col md:flex-row bg-[#e8e0d0] relative overflow-hidden'
+        ref={shellRef} data-mobile-menu-open={isMobileMenuOpen}
+        className='notebook-shell w-full h-dvh flex flex-col md:flex-row bg-[#e8e0d0] relative overflow-hidden'
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.1'/%3E%3C/svg%3E")`,
         }}
       >
         {/* Top Bar Mobile */}
-        <div className='md:hidden bg-[#efebe1] border-b border-neutral-300 p-3 flex items-center justify-between z-30 shrink-0'>
+        <div inert={isMobileLayout && isMobileMenuOpen ? true : undefined} className='mobile-topbar md:hidden bg-[#efebe1] border-b border-neutral-300 p-3 flex items-center justify-between z-30 shrink-0'>
           <div className='flex items-center gap-3'>
             <button
+              ref={menuButtonRef} aria-label='Abrir assuntos'
+              aria-expanded={isMobileMenuOpen} aria-controls='notebook-topics-drawer'
               onClick={() => setIsMobileMenuOpen(true)}
               className='p-1.5 text-slate-600 hover:bg-black/5 rounded-md'
             >
@@ -817,13 +839,14 @@ export default function App() {
             </button>
             <div className='flex items-center gap-2'>
               <BookOpen className='w-5 h-5 text-amber-700' />
-              <span className='font-bold text-slate-800 font-mono truncate max-w-37.5'>
+              <span className='mobile-notebook-name font-bold text-slate-800 font-mono truncate max-w-37.5'>
                 {activeNotebook.title}
               </span>
             </div>
           </div>
           <button
             onClick={closeNotebook}
+            aria-label='Voltar aos cadernos'
             className='p-1.5 text-slate-600 hover:bg-black/5 rounded-md'
           >
             <ArrowLeft className='w-5 h-5' />
@@ -832,26 +855,34 @@ export default function App() {
 
         {/* Overlay do Drawer (Mobile) */}
         {isMobileMenuOpen && (
-          <div
-            className='fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden'
+          <button type='button' tabIndex={-1} aria-label='Fechar menu de assuntos'
+            className='mobile-drawer-backdrop fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden'
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
         {/* Sidebar (Drawer em mobile, Fixa em PC) */}
         <div
+          ref={drawerRef} id='notebook-topics-drawer'
+          role={isMobileLayout ? "dialog" : "complementary"}
+          aria-label='Assuntos do caderno' aria-modal={isMobileLayout && isMobileMenuOpen ? true : undefined}
+          aria-hidden={isMobileLayout && !isMobileMenuOpen ? true : undefined}
+          inert={isMobileLayout && !isMobileMenuOpen ? true : undefined}
           className={`
-          absolute md:relative top-0 left-0 h-full w-4/5 sm:w-64 max-w-sm 
+          notebook-sidebar absolute md:relative top-0 left-0 h-full w-4/5 sm:w-64 max-w-sm
           bg-[#efebe1] md:border-r border-neutral-300 shadow-[inset_-10px_0_20px_-15px_rgba(0,0,0,0.1)] 
           flex flex-col z-50 md:z-20 shrink-0
           transition-transform duration-300 ease-in-out
           ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
         >
-          <div className='p-5 border-b border-neutral-300/50 bg-[#e3dfd6] shrink-0 flex flex-col justify-center md:h-32.5'>
+          <div className='drawer-heading p-5 border-b border-neutral-300/50 bg-[#e3dfd6] shrink-0 flex flex-col justify-center md:h-32.5'>
+            <button type='button' className='mobile-drawer-close' aria-label='Fechar assuntos' onClick={() => setIsMobileMenuOpen(false)}>
+              <X className='w-5 h-5' />
+            </button>
             <button
               onClick={closeNotebook}
-              className='hidden md:flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm font-medium mb-3'
+              className='desktop-back-button hidden md:flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm font-medium mb-3'
             >
               <ArrowLeft className='w-4 h-4' /> Voltar
             </button>
@@ -869,23 +900,20 @@ export default function App() {
             </h1>
           </div>
 
-          <div className='flex-1 overflow-y-auto overflow-x-hidden flex flex-col px-4 py-2 space-y-2 no-scrollbar'>
+          <div className='notebook-topic-list flex-1 overflow-y-auto overflow-x-hidden flex flex-col px-4 py-2 space-y-2 no-scrollbar'>
             <p className='text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-3 shrink-0'>
               Assuntos (Abas)
             </p>
             {activeNotebook?.topics?.map((topic, index) => (
               <div
                 key={topic.id}
-                onClick={() => {
-                  setActiveTopicId(topic.id);
-                  setIsMobileMenuOpen(false);
-                  setIsAddingNote(false);
-                }}
+                onClick={() => { setActiveTopicId(topic.id); setIsMobileMenuOpen(false); setIsAddingNote(false); }}
                 className={`group relative flex items-center justify-between p-2 md:p-3 rounded-lg cursor-pointer transition-all duration-200 shrink-0 min-w-30 md:min-w-0 border md:border-0 border-stone-200
                   ${activeTopicId === topic.id ? "bg-white shadow-sm md:ring-1 md:ring-black/5 scale-100 md:scale-[1.02] border-stone-300" : "bg-white/50 md:bg-transparent hover:bg-white/50 text-slate-600"}
                 `}
               >
-                <div className='flex items-center gap-2 md:gap-3 overflow-hidden w-full'>
+                <button type='button' className='notebook-topic-select flex items-center gap-2 md:gap-3 overflow-hidden w-full'
+                  onClick={(event) => { event.stopPropagation(); setActiveTopicId(topic.id); setIsMobileMenuOpen(false); setIsAddingNote(false); }}>
                   <div
                     className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${topic.color} shadow-sm shrink-0`}
                   />
@@ -894,7 +922,7 @@ export default function App() {
                   >
                     {topic.title}
                   </span>
-                </div>
+                </button>
 
                 {activeTopicId === topic.id && (
                   <div className='flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-1 bg-white/80 rounded-md shadow-sm border border-slate-100 shrink-0'>
@@ -942,6 +970,8 @@ export default function App() {
                 <input
                   type='text'
                   placeholder='Nome...'
+                  aria-label='Nome do assunto' enterKeyHint='done'
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); handleAddTopic(); } }}
                   value={newTopicTitle}
                   onChange={(e) => setNewTopicTitle(e.target.value)}
                   className='w-full bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 outline-none text-sm font-medium pb-1'
@@ -949,9 +979,10 @@ export default function App() {
                 />
                 <div className='flex gap-1 flex-wrap justify-center'>
                   {/* Mostramos menos cores no mobile para caber */}
-                  {TOPIC_COLORS.slice(0, 4).map((c) => (
+                  {TOPIC_COLORS.slice(0, 4).map((c, index) => (
                     <button
                       key={c}
+                      aria-label={`Cor do assunto ${index + 1}`}
                       onClick={() => setNewTopicColor(c)}
                       className={`w-4 h-4 md:w-5 md:h-5 rounded-full ${c} ${newTopicColor === c ? "ring-2 ring-offset-1 ring-slate-400" : "opacity-70 hover:opacity-100"}`}
                     />
@@ -984,12 +1015,12 @@ export default function App() {
         </div>
 
         {/* Área Principal (Página do Caderno) */}
-        <div className='flex-1 flex flex-col relative z-10 overflow-hidden'>
+        <div inert={isMobileLayout && isMobileMenuOpen ? true : undefined} className='notebook-main flex-1 flex flex-col relative z-10 overflow-hidden'>
           {activeTopic ? (
             <>
               {/* Header Edge-to-Edge */}
-              <header className='bg-[#e3dfd6] p-4 sm:p-6 md:px-12 md:py-0 border-b border-neutral-300/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0 z-20 shrink-0 md:h-32.5'>
-                <div>
+              <header className='notebook-topic-header bg-[#e3dfd6] p-4 sm:p-6 md:px-12 md:py-0 border-b border-neutral-300/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0 z-20 shrink-0 md:h-32.5'>
+                <div className='topic-heading'>
                   <div className='flex items-center gap-2'>
                     <Bookmark
                       className={`w-5 h-5 md:w-6 md:h-6 text-${activeTopic.color.split("-")[1]}-500 shrink-0`}
@@ -1006,7 +1037,7 @@ export default function App() {
                 {!isAddingNote && (
                   <button
                     onClick={startNote}
-                    className='bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-2 text-sm font-medium transition-all w-full sm:w-auto shrink-0'
+                    className='add-title-button bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-2 text-sm font-medium transition-all w-full sm:w-auto shrink-0'
                   >
                     <Plus className='w-4 h-4' /> Adicionar título
                   </button>
@@ -1014,9 +1045,9 @@ export default function App() {
               </header>
 
               {/* Lined Paper Area */}
-              <div className='flex-1 relative overflow-y-auto bg-[#f0e9da]'>
+              <div className='notebook-paper flex-1 relative overflow-y-auto bg-[#f0e9da]'>
                 <div
-                  className='relative min-h-full px-4 sm:px-6 md:pl-16 md:pr-12 pt-8 pb-10'
+                  className='notebook-paper-content relative min-h-full px-4 sm:px-6 md:pl-16 md:pr-12 pt-8 pb-10'
                   style={{
                     lineHeight: "2rem",
                     backgroundImage:
@@ -1025,8 +1056,8 @@ export default function App() {
                     backgroundPosition: "0 1.8rem",
                   }}
                 >
-                  <div className='absolute left-4 sm:left-8 md:left-16 top-0 bottom-0 w-px md:w-0.5 bg-red-400/40 z-0'></div>
-                  <div className='max-w-5xl pl-1 md:pl-2 relative z-10'>
+                  <div className='paper-margin absolute left-4 sm:left-8 md:left-16 top-0 bottom-0 w-px md:w-0.5 bg-red-400/40 z-0'></div>
+                  <div className='paper-notes max-w-5xl pl-1 md:pl-2 relative z-10'>
                     {isAddingNote && (
                       <InlineNoteDraft
                         key={editingNoteId}
@@ -1065,7 +1096,7 @@ export default function App() {
                               <div className='absolute -left-3 md:-left-4 top-1 bottom-0 w-0.5 md:w-1 bg-linear-to-b from-transparent via-yellow-300/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity'></div>
 
                               <div
-                                className='flex flex-row justify-between items-start gap-2'
+                                className='note-heading-row flex flex-row justify-between items-start gap-2'
                                 style={{ lineHeight: "2rem" }}
                               >
                                 <h3
@@ -1077,7 +1108,7 @@ export default function App() {
                                   </span>
                                   {note.title}
                                 </h3>
-                                <div className='flex self-start opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white/80 rounded-md shadow-sm border border-slate-100'>
+                                <div className='note-actions flex self-start opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white/80 rounded-md shadow-sm border border-slate-100'>
                                   {index > 0 && (
                                     <>
                                       <button
@@ -1108,6 +1139,7 @@ export default function App() {
                                   )}
                                   <button
                                     onClick={() => handleEditNote(note)}
+                                    aria-label={`Editar título ${note.title}`} title='Editar título'
                                     className='p-1.5 md:p-2 text-slate-400 hover:text-blue-500 transition-colors'
                                   >
                                     <Edit2 className='w-3 h-3 md:w-4 md:h-4' />
@@ -1115,6 +1147,7 @@ export default function App() {
                                   <div className='w-px bg-slate-200'></div>
                                   <button
                                     onClick={() => handleDeleteNote(note.id)}
+                                    aria-label={`Excluir anotação ${note.title}`} title='Excluir anotação'
                                     className='p-1.5 md:p-2 text-slate-400 hover:text-red-500 transition-colors'
                                   >
                                     <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
@@ -1123,13 +1156,12 @@ export default function App() {
                               </div>
 
                               <NoteEditor
+                                storageKey={`${noteDraftKey}:content:${note.id}`}
                                 autoFocus={focusNoteId === note.id}
                                 aria-label={`Conteúdo de ${note.title || "anotação"}`}
                                 data-placeholder='Escreva direto na folha ou cole seu código…'
                                 html={sanitizeHtmlContent(note.content || "")}
-                                onChange={(content) => {
-                                  autoSaveNoteContent(note.id, content);
-                                }}
+                                onChange={(content) => autoSaveNoteContent(note.id, content)}
                                 className='note-text inline-note-editor min-h-24 text-slate-700 whitespace-pre-wrap outline-none'
                               />
                             </article>
@@ -1153,7 +1185,7 @@ export default function App() {
 
       {/* PWA Install Prompt */}
       {showInstallPrompt && (
-        <div className='fixed bottom-0 left-0 right-0 p-4 md:p-6 z-100 flex justify-center animate-in slide-in-from-bottom-10 fade-in duration-300'>
+        <div className='app-install-prompt fixed bottom-0 left-0 right-0 p-4 md:p-6 z-100 flex justify-center animate-in slide-in-from-bottom-10 fade-in duration-300'>
           <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 max-w-lg w-full'>
             <div className='bg-blue-100 p-3 rounded-xl shrink-0'>
               <BookOpen className='w-6 h-6 text-blue-600' />
@@ -1185,7 +1217,7 @@ export default function App() {
 
       {/* iOS Instructions (since iOS doesn't support the prompt API properly) */}
       {isIos && !window.matchMedia("(display-mode: standalone)").matches && (
-        <div className='fixed bottom-0 left-0 right-0 p-4 z-100 md:hidden'>
+        <div className='app-install-prompt fixed bottom-0 left-0 right-0 p-4 z-100 md:hidden'>
           <div className='bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl rounded-xl p-3 flex items-start gap-3 text-sm'>
             <div className='mt-0.5 text-blue-500'>
               <Bookmark className='w-5 h-5' />

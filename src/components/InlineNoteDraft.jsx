@@ -39,13 +39,13 @@ export default function InlineNoteDraft({ initialValue, onSave, onDone, storageK
     if (await autosaveRef.current.flush()) onDone();
   };
   return <section aria-label='Adicionar título' className='mb-6'>
-    <input autoFocus aria-label='Título' placeholder='Digite o título e pressione Enter'
+    <input autoFocus aria-label='Título' placeholder='Digite o título e pressione Enter' enterKeyHint='done'
       value={value.title} onChange={(event) => change("title", event.target.value)}
       onKeyDown={(event) => {
         if (event.key === "Enter") { event.preventDefault(); finish(); }
       }}
       onBlur={finish}
-      className='w-full bg-transparent border-0 border-b border-stone-400/50 outline-none focus:border-slate-600 font-serif font-bold text-xl md:text-2xl text-slate-800 placeholder:text-slate-400 pb-1'
+      className='note-title-input w-full bg-transparent border-0 border-b border-stone-400/50 outline-none focus:border-slate-600 font-serif font-bold text-xl md:text-2xl text-slate-800 placeholder:text-slate-400 pb-1'
       style={{ lineHeight: "2rem" }} />
     <span role='status' aria-live='polite' className={status === "error" ? "text-sm text-red-700" : "sr-only"}>
       {{ idle: "Salvamento automático", pending: "Alterações pendentes…", saving: "Salvando…", saved: "Salvo na nuvem", error: "Não foi possível salvar o título. Tente novamente." }[status]}
