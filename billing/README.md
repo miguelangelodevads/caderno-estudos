@@ -47,7 +47,21 @@ A identidade `caderno-payments@caderno-estudos-7adbd.iam.gserviceaccount.com` fo
 criada e recebeu apenas `roles/datastore.user` no projeto do Caderno, com autorização
 expressa do proprietário. A chave foi validada e armazenada como Secret criptografado
 no Worker; a cópia temporária local foi removida. Os dois Secrets Firebase estão
-configurados. As credenciais Mercado Pago ainda estão pendentes.
+configurados. A assinatura Webhook Mercado Pago foi gerada na aplicação exclusiva
+`3813018558783294` e armazenada como Secret; notificações de pagamentos foram salvas
+para o endpoint do Worker nos ambientes de teste e produção. O token instalado é de
+teste. A criação integrada do checkout ainda falhou no provedor e não foi validada.
+As credenciais de produção e a ativação final permanecem pendentes.
+
+Durante os testes, o painel recebeu `APP_URL` do Pages, `LEGACY_APP_URL` da Vercel,
+`MP_COLLECTOR_ID=115256254` (ID exibido pela aplicação) e `CHECKOUT_ENABLED=true`
+somente com `MP_ENVIRONMENT=sandbox`. O frontend continua com cobrança desligada.
+Os defaults versionados mantêm o bloqueio preventivo para uma nova publicação.
+Uma conta Firebase identificada como `caderno-billing-test-…@example.invalid` foi
+criada exclusivamente para testar autenticação e checkout; não contém cadernos.
+Sua sessão permanece no diretório privado ignorado. A integração ainda estava
+classificada como Checkout Transparente; a alteração para Checkout Pro/Preferences
+precisa ser confirmada após a reautenticação solicitada pelo Mercado Pago.
 Rotina administrativa repetível: `node billing/scripts/create-identity.cjs`.
 
 Worker publicado: `https://caderno-estudos-payments.migueltiojhoe.workers.dev`,
