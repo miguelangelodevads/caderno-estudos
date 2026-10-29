@@ -1,12 +1,13 @@
 import ContentEditableModule from "react-contenteditable";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CodeXml, Pencil, Trash2, X } from "lucide-react";
-import { createCodeBlock } from "../utils/codeFormatting.js";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CodeXml, Pencil, Trash2 } from "lucide-react";
+import { createCodeBlock, createEditableCodeBlock } from "../utils/codeFormatting.js";
 import { formatNotePaste, normalizeNoteHtml } from "../utils/noteContent.js";
 import { sanitizeHtmlContent } from "../utils/sanitize.js";
 import { TEXT_COLORS, markEditorTextColors, normalizeTextColor } from "../utils/textColor.js";
 import { createAutosave } from "../utils/autosave.js";
 
+const InlineCodeEditor = lazy(() => import("./InlineCodeEditor.jsx"));
 const ContentEditable = ContentEditableModule.default || ContentEditableModule;
 
 export default function NoteEditor({ html, onChange, autoFocus = false, storageKey, draftStorage=globalThis.localStorage, ...props }) {
@@ -19,8 +20,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   const [codeDraft, setCodeDraft] = useState(null);
   const [codeCards, setCodeCards] = useState([]);
   const wrapRef = useRef(null);
-  const codeDialogRef = useRef(null);
-  const codeInputRef = useRef(null);
+  const [codeHeight, setCodeHeight] = useState(224);
   const [restoredDraft] = useState(() => {
     try { return storageKey ? draftStorage.getItem(storageKey) : null; } catch { return null; }
   });
@@ -28,29 +28,25 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   const [saveStatus, setSaveStatus] = useState("idle");
   const latestHtmlRef = useRef(restoredDraft ?? html);
   const autosaveRef = useRef(null);
-  const codeDialogOpen = codeDraft !== null;
+
   useLayoutEffect(() => {
     const editor = editorRef.current;
     const wrap = wrapRef.current;
     if (!editor || !wrap) return;
     const measure = () => {
       const origin = wrap.getBoundingClientRect();
-      setCodeCards([...editor.querySelectorAll('pre.code-block')].map((block) => {
+      setCodeCards([...editor.querySelectorAll('pre.code-block')].map((block, index) => {
+        if (codeDraft?.index === index) { block.style.visibility = 'hidden'; block.style.minHeight = `${Math.ceil(codeHeight / 32) * 32}px`; block.style.height = block.style.minHeight; block.style.overflow = 'hidden'; }
+        else { block.style.visibility = ''; block.style.minHeight = ''; block.style.height = ''; block.style.overflow = ''; }
         const rect = block.getBoundingClientRect();
-        return { block, top: rect.top - origin.top, right: origin.right - rect.right };
+        return { top: rect.top - origin.top, left: rect.left - origin.left, width: rect.width, right: origin.right - rect.right };
       }));
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(editor);
     return () => observer.disconnect();
-  }, [draftHtml, html]);
-  useEffect(() => {
-    if (codeDialogOpen) {
-      codeDialogRef.current?.showModal();
-      codeInputRef.current?.focus();
-    } else codeDialogRef.current?.close();
-  }, [codeDialogOpen]);
+  }, [draftHtml, html, codeDraft?.index, codeHeight]);
   // Não substitui o que está sendo digitado por uma confirmação antiga da nuvem.
   if (draftHtml !== null && draftHtml === html && saveStatus === "saved") setDraftHtml(null);
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
@@ -172,7 +168,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   };
 
   const handleBlur = (event) => {
-    if (codeDialogOpen) { autosaveRef.current?.flush(); return; }
+    if (codeDraft !== null) { autosaveRef.current?.flush(); return; }
     const editor = event.currentTarget;
     const previous = editor.innerHTML;
     // Recolore somente ao sair do editor, para não deslocar o cursor ao digitar.
@@ -186,31 +182,51 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   };
 
   const openCode = (block = null) => {
-    setCodeDraft({ block, text: block?.querySelector('code')?.innerText || '', language: block?.dataset.language || '' });
-  };
-  const saveCode = () => {
     const editor = editorRef.current;
-    if (!editor || !codeDraft?.text.trim()) return;
-    const template = document.createElement('template');
-    template.innerHTML = sanitizeHtmlContent(createCodeBlock(codeDraft.text, codeDraft.language || undefined));
-    const block = template.content.firstElementChild;
-    if (codeDraft.block?.isConnected && editor.contains(codeDraft.block)) codeDraft.block.replaceWith(block);
-    else {
+    if (!editor) return;
+    if (codeDraft) finishCode();
+    if (!block) {
+      block = document.createElement('pre');
+      block.className = 'code-block';
+      block.dataset.language = 'html';
+      block.dataset.codeMode = 'code';
+      block.append(document.createElement('code'));
       editor.append(block);
       const paragraph = document.createElement('p');
       paragraph.append(document.createElement('br'));
       editor.append(paragraph);
     }
+    const index = [...editor.querySelectorAll('pre.code-block')].indexOf(block);
+    setCodeHeight(224);
+    setCodeDraft({ index, text: block.querySelector('code')?.innerText || '', language: block.dataset.language === 'texto' ? 'html' : block.dataset.language || 'html' });
     savedRangeRef.current = null;
     emitChange(editor);
+    block.scrollIntoView({block:'nearest'});
+  };
+  const updateCode = (text, language = codeDraft.language) => {
+    const editor = editorRef.current;
+    const block = editor?.querySelectorAll('pre.code-block')[codeDraft.index];
+    if (!block) return;
+    const template = document.createElement('template');
+    template.innerHTML = sanitizeHtmlContent(createEditableCodeBlock(text, language));
+    block.replaceWith(template.content.firstElementChild);
+    setCodeDraft({ ...codeDraft, text, language });
+    emitChange(editor);
+  };
+  const finishCode = () => {
+    if (!codeDraft) return;
+    const editor = editorRef.current;
+    const block = editor?.querySelectorAll('pre.code-block')[codeDraft.index];
+    if (block) block.outerHTML = sanitizeHtmlContent(createEditableCodeBlock(codeDraft.text, codeDraft.language));
     setCodeDraft(null);
-    editor.focus();
-    block.scrollIntoView({ block: 'nearest' });
+    if (editor) emitChange(editor);
+    autosaveRef.current?.flush();
   };
   const deleteCode = (block) => {
     if (!editorRef.current?.contains(block)) return;
     if (block.textContent.trim() && !window.confirm('Excluir este bloco de código? O restante da anotação será mantido.')) return;
     block.remove();
+    setCodeDraft(null);
     savedRangeRef.current = null;
     emitChange(editorRef.current);
   };
@@ -238,30 +254,17 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
       onChange={() => emitChange(editorRef.current)}
       onPaste={handlePaste} onBlur={handleBlur} spellCheck={false}
       role='textbox' aria-multiline='true' autoCapitalize='off' autoCorrect='off' />
-    {codeCards.map(({ top, right }, index) => <div key={index} className='note-code-actions' style={{ top, right }}>
-      <button type='button' onPointerDown={(event) => event.preventDefault()} aria-label={`Editar bloco de código ${index + 1}`} title='Editar código' onClick={() => openCode(editorRef.current?.querySelectorAll("pre.code-block")[index])}><Pencil size={16} /></button>
-      <button type='button' onPointerDown={(event) => event.preventDefault()} aria-label={`Excluir bloco de código ${index + 1}`} title='Excluir código' onClick={() => deleteCode(editorRef.current?.querySelectorAll("pre.code-block")[index])}><Trash2 size={16} /></button>
-    </div>)}
-    <dialog ref={codeDialogRef} className='note-code-dialog' aria-labelledby={`${storageKey}-code-title`}
-      onCancel={(event) => { event.preventDefault(); setCodeDraft(null); }}>
-      {codeDraft !== null && <>
-        <header><h2 id={`${storageKey}-code-title`}>Editor de código</h2><button type='button' aria-label='Fechar editor de código' onClick={() => setCodeDraft(null)}><X size={22} /></button></header>
-        <label>Linguagem<select value={codeDraft.language} onChange={(event) => setCodeDraft({ ...codeDraft, language: event.target.value })}>
-          <option value=''>Automática</option>
-          {[...new Set(['javascript', 'typescript', 'html', 'css', 'python', 'json', 'sql', 'bash', 'powershell', 'java', 'c', 'cpp', 'csharp', 'php', 'go', 'rust', 'dart', codeDraft.language].filter(Boolean))].map((language) => <option key={language} value={language}>{language}</option>)}
-        </select></label>
-        <textarea ref={codeInputRef} aria-label='Código' value={codeDraft.text} placeholder='Escreva seu código aqui…' spellCheck={false} autoCapitalize='off' autoCorrect='off'
-          onChange={(event) => setCodeDraft({ ...codeDraft, text: event.target.value })}
-          onKeyDown={(event) => {
-            if (event.key !== 'Tab' || event.shiftKey) return;
-            event.preventDefault();
-            const input = event.currentTarget;
-            input.setRangeText('  ', input.selectionStart, input.selectionEnd, 'end');
-            setCodeDraft({ ...codeDraft, text: input.value });
-          }} />
-        <footer><button type='button' onClick={() => setCodeDraft(null)}>Cancelar</button><button type='button' disabled={!codeDraft.text.trim()} onClick={saveCode}>Inserir e salvar código</button></footer>
-      </>}
-    </dialog>
+    {codeCards.map(({ top, right, left, width }, index) => codeDraft?.index === index
+      ? <div key={index} className='inline-code-overlay' style={{ top, left, width }}>
+          <Suspense fallback={<div className='inline-code-loading' role='status'>Abrindo editor…</div>}>
+            <InlineCodeEditor text={codeDraft.text} language={codeDraft.language} onChange={updateCode} onHeight={setCodeHeight} onDone={finishCode}
+              onDelete={() => deleteCode(editorRef.current?.querySelectorAll('pre.code-block')[index])} />
+          </Suspense>
+        </div>
+      : <div key={index} className='note-code-actions' style={{ top, right }}>
+          <button type='button' onPointerDown={(event) => event.preventDefault()} aria-label={`Editar bloco de código ${index + 1}`} title='Editar código' onClick={() => openCode(editorRef.current?.querySelectorAll('pre.code-block')[index])}><Pencil size={16} /></button>
+          <button type='button' onPointerDown={(event) => event.preventDefault()} aria-label={`Excluir bloco de código ${index + 1}`} title='Excluir código' onClick={() => deleteCode(editorRef.current?.querySelectorAll('pre.code-block')[index])}><Trash2 size={16} /></button>
+        </div>)}
     <div className={`mobile-editor-save ${saveStatus === "idle" ? "mobile-editor-save-idle" : ""}`} role='status' aria-live='polite'>
       {{ idle: "", pending: "Salvando…", saving: "Salvando…", saved: "Salvo", error: "Falha ao salvar" }[saveStatus]}
       {saveStatus === "error" && <button type='button' onPointerDown={(event) => event.preventDefault()} onClick={() => autosaveRef.current?.flush()}>Tentar novamente</button>}

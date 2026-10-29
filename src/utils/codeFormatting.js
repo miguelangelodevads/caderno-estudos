@@ -83,6 +83,12 @@ export function createCodeBlock(code, language, { forceFormat = false } = {}) {
   return `<pre class="code-block" data-language="${escapeHtml(result.language)}" data-code-mode="code"><code class="hljs">${result.value}</code></pre>`;
 }
 
+// Durante a digitação, colore sem reformatar nem modificar a fonte escrita.
+export function createEditableCodeBlock(code, language) {
+  const result = highlight(code, language);
+  return `<pre class="code-block" data-language="${escapeHtml(result.language)}" data-code-mode="code"><code class="hljs">${result.value}</code></pre>`;
+}
+
 function commentLine(line, language) {
   if (!line.trim() || /^\s*(?:\/\/|#|--|\/\*|\*|<!--)/.test(line)) return line;
   if (["python", "py", "bash", "sh", "shell", "ruby", "rb", "powershell", "yaml", "yml", "r"].includes(language)) return `# ${line}`;
