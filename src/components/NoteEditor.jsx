@@ -1,5 +1,6 @@
 import ContentEditableModule from "react-contenteditable";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CodeXml, Pencil, Trash2, X } from "lucide-react";
 import { createCodeBlock } from "../utils/codeFormatting.js";
 import { formatNotePaste, normalizeNoteHtml } from "../utils/noteContent.js";
 import { sanitizeHtmlContent } from "../utils/sanitize.js";
@@ -15,6 +16,11 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   const colorRef = useRef(TEXT_COLORS[0].value);
   const [activeColor, setActiveColor] = useState(TEXT_COLORS[0].value);
   const [insideCode, setInsideCode] = useState(false);
+  const [codeDraft, setCodeDraft] = useState(null);
+  const [codeCards, setCodeCards] = useState([]);
+  const wrapRef = useRef(null);
+  const codeDialogRef = useRef(null);
+  const codeInputRef = useRef(null);
   const [restoredDraft] = useState(() => {
     try { return storageKey ? draftStorage.getItem(storageKey) : null; } catch { return null; }
   });
@@ -22,6 +28,29 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   const [saveStatus, setSaveStatus] = useState("idle");
   const latestHtmlRef = useRef(restoredDraft ?? html);
   const autosaveRef = useRef(null);
+  const codeDialogOpen = codeDraft !== null;
+  useLayoutEffect(() => {
+    const editor = editorRef.current;
+    const wrap = wrapRef.current;
+    if (!editor || !wrap) return;
+    const measure = () => {
+      const origin = wrap.getBoundingClientRect();
+      setCodeCards([...editor.querySelectorAll('pre.code-block')].map((block) => {
+        const rect = block.getBoundingClientRect();
+        return { block, top: rect.top - origin.top, right: origin.right - rect.right };
+      }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(editor);
+    return () => observer.disconnect();
+  }, [draftHtml, html]);
+  useEffect(() => {
+    if (codeDialogOpen) {
+      codeDialogRef.current?.showModal();
+      codeInputRef.current?.focus();
+    } else codeDialogRef.current?.close();
+  }, [codeDialogOpen]);
   // Não substitui o que está sendo digitado por uma confirmação antiga da nuvem.
   if (draftHtml !== null && draftHtml === html && saveStatus === "saved") setDraftHtml(null);
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
@@ -143,6 +172,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
   };
 
   const handleBlur = (event) => {
+    if (codeDialogOpen) { autosaveRef.current?.flush(); return; }
     const editor = event.currentTarget;
     const previous = editor.innerHTML;
     // Recolore somente ao sair do editor, para não deslocar o cursor ao digitar.
@@ -155,7 +185,37 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
     autosaveRef.current?.flush();
   };
 
-  return <div className='note-editor-wrap min-w-0'>
+  const openCode = (block = null) => {
+    setCodeDraft({ block, text: block?.querySelector('code')?.innerText || '', language: block?.dataset.language || '' });
+  };
+  const saveCode = () => {
+    const editor = editorRef.current;
+    if (!editor || !codeDraft?.text.trim()) return;
+    const template = document.createElement('template');
+    template.innerHTML = sanitizeHtmlContent(createCodeBlock(codeDraft.text, codeDraft.language || undefined));
+    const block = template.content.firstElementChild;
+    if (codeDraft.block?.isConnected && editor.contains(codeDraft.block)) codeDraft.block.replaceWith(block);
+    else {
+      editor.append(block);
+      const paragraph = document.createElement('p');
+      paragraph.append(document.createElement('br'));
+      editor.append(paragraph);
+    }
+    savedRangeRef.current = null;
+    emitChange(editor);
+    setCodeDraft(null);
+    editor.focus();
+    block.scrollIntoView({ block: 'nearest' });
+  };
+  const deleteCode = (block) => {
+    if (!editorRef.current?.contains(block)) return;
+    if (block.textContent.trim() && !window.confirm('Excluir este bloco de código? O restante da anotação será mantido.')) return;
+    block.remove();
+    savedRangeRef.current = null;
+    emitChange(editorRef.current);
+  };
+
+  return <div ref={wrapRef} className='note-editor-wrap min-w-0 relative'>
     <div role='toolbar' aria-label='Cores do texto' className='note-color-toolbar-desktop flex items-center flex-wrap gap-2 mb-2 font-sans text-xs text-slate-500'>
       <span>Cor do texto</span>
       {TEXT_COLORS.map((color) => <button key={color.value} type='button'
@@ -171,11 +231,37 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
           onChange={(event) => applyColor(event.target.value)}
           className='w-6 h-6 cursor-pointer border-0 bg-transparent p-0 disabled:opacity-30' />
       </label>
+      <button type='button' className='note-add-code' aria-label='Escrever código' title='Escrever código'
+        onPointerDown={(event) => event.preventDefault()} onClick={() => openCode()}><CodeXml size={20} /></button>
     </div>
     <ContentEditable {...props} innerRef={editorRef} html={normalizeNoteHtml(draftHtml ?? html, { upgradeCodeBlocks: true })}
       onChange={() => emitChange(editorRef.current)}
       onPaste={handlePaste} onBlur={handleBlur} spellCheck={false}
       role='textbox' aria-multiline='true' autoCapitalize='off' autoCorrect='off' />
+    {codeCards.map(({ top, right }, index) => <div key={index} className='note-code-actions' style={{ top, right }}>
+      <button type='button' onPointerDown={(event) => event.preventDefault()} aria-label={`Editar bloco de código ${index + 1}`} title='Editar código' onClick={() => openCode(editorRef.current?.querySelectorAll("pre.code-block")[index])}><Pencil size={16} /></button>
+      <button type='button' onPointerDown={(event) => event.preventDefault()} aria-label={`Excluir bloco de código ${index + 1}`} title='Excluir código' onClick={() => deleteCode(editorRef.current?.querySelectorAll("pre.code-block")[index])}><Trash2 size={16} /></button>
+    </div>)}
+    <dialog ref={codeDialogRef} className='note-code-dialog' aria-labelledby={`${storageKey}-code-title`}
+      onCancel={(event) => { event.preventDefault(); setCodeDraft(null); }}>
+      {codeDraft !== null && <>
+        <header><h2 id={`${storageKey}-code-title`}>Editor de código</h2><button type='button' aria-label='Fechar editor de código' onClick={() => setCodeDraft(null)}><X size={22} /></button></header>
+        <label>Linguagem<select value={codeDraft.language} onChange={(event) => setCodeDraft({ ...codeDraft, language: event.target.value })}>
+          <option value=''>Automática</option>
+          {[...new Set(['javascript', 'typescript', 'html', 'css', 'python', 'json', 'sql', 'bash', 'powershell', 'java', 'c', 'cpp', 'csharp', 'php', 'go', 'rust', 'dart', codeDraft.language].filter(Boolean))].map((language) => <option key={language} value={language}>{language}</option>)}
+        </select></label>
+        <textarea ref={codeInputRef} aria-label='Código' value={codeDraft.text} placeholder='Escreva seu código aqui…' spellCheck={false} autoCapitalize='off' autoCorrect='off'
+          onChange={(event) => setCodeDraft({ ...codeDraft, text: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.key !== 'Tab' || event.shiftKey) return;
+            event.preventDefault();
+            const input = event.currentTarget;
+            input.setRangeText('  ', input.selectionStart, input.selectionEnd, 'end');
+            setCodeDraft({ ...codeDraft, text: input.value });
+          }} />
+        <footer><button type='button' onClick={() => setCodeDraft(null)}>Cancelar</button><button type='button' disabled={!codeDraft.text.trim()} onClick={saveCode}>Inserir e salvar código</button></footer>
+      </>}
+    </dialog>
     <div className={`mobile-editor-save ${saveStatus === "idle" ? "mobile-editor-save-idle" : ""}`} role='status' aria-live='polite'>
       {{ idle: "", pending: "Salvando…", saving: "Salvando…", saved: "Salvo", error: "Falha ao salvar" }[saveStatus]}
       {saveStatus === "error" && <button type='button' onPointerDown={(event) => event.preventDefault()} onClick={() => autosaveRef.current?.flush()}>Tentar novamente</button>}
