@@ -9,6 +9,23 @@ export function formatNotePaste(text, clipboardHtml = "") {
   return `<span>${escapeHtml(text.replace(/\r\n?/g, "\n")).replace(/\n/g, "<br>")}</span>`;
 }
 
+// A reserva de espaço pertence ao HTML de exibição, nunca a uma mutação feita
+// pelo observador de tamanho. Assim o contenteditable não a desfaz a cada render.
+export function decorateActiveCode(safeHtml, index, height) {
+  if (!Number.isInteger(index) || index < 0 || !Number.isFinite(height) || typeof document === 'undefined') return safeHtml;
+  const template = document.createElement('template');
+  template.innerHTML = safeHtml;
+  const block = template.content.querySelectorAll('pre.code-block')[index];
+  if (block) {
+    const size = `${Math.ceil(Math.max(128, height) / 32) * 32}px`;
+    block.style.visibility = 'hidden';
+    block.style.height = size;
+    block.style.minHeight = size;
+    block.style.overflow = 'hidden';
+  }
+  return template.innerHTML;
+}
+
 export function normalizeNoteHtml(html, { upgradeCodeBlocks = false } = {}) {
   const safe = sanitizeHtmlContent(html || "");
   if (typeof document === "undefined") return safe;

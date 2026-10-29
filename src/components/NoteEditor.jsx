@@ -2,7 +2,7 @@ import ContentEditableModule from "react-contenteditable";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CodeXml, Pencil, Trash2 } from "lucide-react";
 import { createCodeBlock, createEditableCodeBlock } from "../utils/codeFormatting.js";
-import { formatNotePaste, normalizeNoteHtml } from "../utils/noteContent.js";
+import { formatNotePaste, normalizeNoteHtml, decorateActiveCode } from "../utils/noteContent.js";
 import { sanitizeHtmlContent } from "../utils/sanitize.js";
 import { TEXT_COLORS, markEditorTextColors, normalizeTextColor } from "../utils/textColor.js";
 import { createAutosave } from "../utils/autosave.js";
@@ -35,12 +35,12 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
     if (!editor || !wrap) return;
     const measure = () => {
       const origin = wrap.getBoundingClientRect();
-      setCodeCards([...editor.querySelectorAll('pre.code-block')].map((block, index) => {
-        if (codeDraft?.index === index) { block.style.visibility = 'hidden'; block.style.minHeight = `${Math.ceil(codeHeight / 32) * 32}px`; block.style.height = block.style.minHeight; block.style.overflow = 'hidden'; }
-        else { block.style.visibility = ''; block.style.minHeight = ''; block.style.height = ''; block.style.overflow = ''; }
+      const measured = [...editor.querySelectorAll('pre.code-block')].map((block) => {
         const rect = block.getBoundingClientRect();
         return { top: rect.top - origin.top, left: rect.left - origin.left, width: rect.width, right: origin.right - rect.right };
-      }));
+      });
+      setCodeCards(current => current.length === measured.length && current.every((card, index) =>
+        ['top', 'left', 'width', 'right'].every(key => Math.abs(card[key] - measured[index][key]) < 0.5)) ? current : measured);
     };
     measure();
     let frame;
@@ -254,7 +254,7 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
       <button type='button' className='note-add-code' aria-label='Escrever código' title='Escrever código'
         onPointerDown={(event) => event.preventDefault()} onClick={() => openCode()}><CodeXml size={20} /></button>
     </div>
-    <ContentEditable {...props} innerRef={editorRef} html={normalizeNoteHtml(draftHtml ?? html, { upgradeCodeBlocks: true })}
+    <ContentEditable {...props} innerRef={editorRef} html={decorateActiveCode(normalizeNoteHtml(draftHtml ?? html, { upgradeCodeBlocks: true }), codeDraft?.index, codeHeight)}
       onChange={() => emitChange(editorRef.current)}
       onPaste={handlePaste} onBlur={handleBlur} spellCheck={false}
       role='textbox' aria-multiline='true' autoCapitalize='off' autoCorrect='off' />
