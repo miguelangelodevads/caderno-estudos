@@ -109,3 +109,6 @@
 
 @media (max-width: 767px) { .inline-code-surface header, .inline-code-surface header select, .inline-code-surface header button { min-height: 44px; } }
 .inline-code-surface { color-scheme: dark; }
+/* A separação é uma linha editável, sem margens extras somadas. */
+.note-text .code-block { margin-top: 0; margin-bottom: 0; }
+.note-text :is(p,div):has(+ pre.code-block):not(:empty):not(:has(br:only-child)) { margin-bottom: 32px; }

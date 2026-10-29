@@ -105,7 +105,7 @@
     -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
   }
   .note-text :where(p, div, ul, ol, li) { margin-top: 0; margin-bottom: 0; line-height: inherit; }
-  .note-text .code-block { max-width: 100%; margin: 32px 0; padding: 64px 12px 32px; border-width: 0; box-shadow: inset 0 0 0 1px #44475a; font-size: 15px; line-height: 32px; }
+  .note-text .code-block { max-width: 100%; margin: 0; padding: 64px 12px 32px; border-width: 0; box-shadow: inset 0 0 0 1px #44475a; font-size: 15px; line-height: 32px; }
   .note-text .code-block::before { height: 32px; padding-top: 5px; padding-bottom: 5px; border-width: 0; }
   .note-title-input { font-size: 20px; min-height: 44px; }
   /* Paleta compartilhada com o desktop, sem cartões ou barra flutuante. */
