@@ -71,9 +71,13 @@ export default function InlineCodeEditor({text, language, onChange, onHeight, on
   },[language]);
   useEffect(()=>{
     const element=host.current.parentElement;
-    const observer=new ResizeObserver(()=>onHeight(element.getBoundingClientRect().height));
+    let frame;
+    const observer=new ResizeObserver(()=>{
+      cancelAnimationFrame(frame);
+      frame=requestAnimationFrame(()=>onHeight(element.getBoundingClientRect().height));
+    });
     observer.observe(element);
-    return ()=>observer.disconnect();
+    return ()=>{observer.disconnect();cancelAnimationFrame(frame);};
   },[onHeight]);
   return <section className='inline-code-surface' aria-label='Editor de código na folha — tema Dracula'>
     <header><label><span className='sr-only'>Linguagem do código</span><select aria-label='Linguagem do código' value={language} onChange={event=>onChange(view.current.state.doc.toString(),event.target.value)}>

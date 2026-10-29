@@ -43,9 +43,13 @@ export default function NoteEditor({ html, onChange, autoFocus = false, storageK
       }));
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    let frame;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     observer.observe(editor);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   }, [draftHtml, html, codeDraft?.index, codeHeight]);
   // Não substitui o que está sendo digitado por uma confirmação antiga da nuvem.
   if (draftHtml !== null && draftHtml === html && saveStatus === "saved") setDraftHtml(null);
