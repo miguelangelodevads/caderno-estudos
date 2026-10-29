@@ -25,14 +25,16 @@ test('mudar o bloco ativo remove a reserva anterior, sem introduzir dados execut
  assert.equal(holder.querySelectorAll('pre')[1].style.height,'224px');
  assert.equal(decorateActiveCode(safe,1,NaN),safe);
 });
-test('código colado recebe exatamente uma linha editável acima e abaixo',()=>{
+test('código colado recebe linhas editáveis sem apagar as linhas já existentes',()=>{
  const html=normalizeNoteHtml('<p>Texto</p><p><br></p><p><br></p><pre class="code-block"><code>const a=1;</code></pre><p><br></p><p><br></p><p>Fim</p>');
  const holder=document.createElement('div');holder.innerHTML=html;
  const block=holder.querySelector('pre');
  assert.equal(block.previousSibling.outerHTML,'<p><br></p>');
- assert.equal(block.previousSibling.previousSibling.textContent,'Texto');
+ assert.equal(block.previousSibling.previousSibling.outerHTML,'<p><br></p>');
+ assert.equal(block.previousSibling.previousSibling.previousSibling.textContent,'Texto');
  assert.equal(block.nextSibling.outerHTML,'<p><br></p>');
- assert.equal(block.nextSibling.nextSibling.textContent,'Fim');
+ assert.equal(block.nextSibling.nextSibling.outerHTML,'<p><br></p>');
+ assert.equal(block.nextSibling.nextSibling.nextSibling.textContent,'Fim');
  assert.equal(normalizeNoteHtml(html),html);
  const only=document.createElement('div');only.innerHTML=normalizeNoteHtml('<pre class="code-block"><code>print(1)</code></pre>');
  assert.equal(only.firstChild.outerHTML,'<p><br></p>');
@@ -50,4 +52,15 @@ test('digitar na linha existente não insere outro parágrafo nem desloca o curs
  const html='<p>Primeira letra</p><pre class="code-block"><code>x</code></pre><p>Depois</p>';
  const normalized=normalizeNoteHtml(html);
  assert.equal(normalized,html);
+});
+
+test('Enter repetido antes e depois do código preserva os parágrafos e a posição de escrita',()=>{
+ const block='<pre class="code-block"><code>x</code></pre>';
+ for (const tag of ['p','div']) for (const count of [2,3,5]) {
+   const lines=`<${tag}><br></${tag}>`.repeat(count);
+   for (const html of [`${lines}<${tag}>Acima</${tag}>${block}<p><br></p>`, `<p><br></p>${block}${lines}<${tag}>Abaixo</${tag}>`]) {
+     assert.equal(normalizeNoteHtml(html),html);
+     assert.equal(normalizeNoteHtml(normalizeNoteHtml(html)),html);
+   }
+ }
 });

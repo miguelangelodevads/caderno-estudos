@@ -53,8 +53,6 @@ export function normalizeNoteHtml(html, { upgradeCodeBlocks = false } = {}) {
   }
   // Cada bloco precisa de uma linha real para posicionar o cursor fora dele.
   // Margens visuais não permitem escrever e somavam espaços aos parágrafos.
-  const emptyLine = (node) => node?.nodeType === 1 && node.matches('p,div') &&
-    !node.querySelector('pre,code,ul,ol,li') && !node.textContent.replace(/\u00a0/g, ' ').trim();
   const writingLine = (node) => node?.nodeType === 1 && node.matches('p,div') && !node.querySelector('pre,code,ul,ol,li');
   const makeLine = () => {
     const line = document.createElement('p');
@@ -63,9 +61,7 @@ export function normalizeNoteHtml(html, { upgradeCodeBlocks = false } = {}) {
   };
   template.content.querySelectorAll('pre.code-block').forEach(block => {
     if (!writingLine(block.previousSibling)) block.before(makeLine());
-    if (emptyLine(block.previousSibling)) while (emptyLine(block.previousSibling?.previousSibling)) block.previousSibling.previousSibling.remove();
     if (!writingLine(block.nextSibling)) block.after(makeLine());
-    if (emptyLine(block.nextSibling)) while (emptyLine(block.nextSibling?.nextSibling)) block.nextSibling.nextSibling.remove();
   });
   return template.innerHTML;
 }
